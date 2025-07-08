@@ -1,0 +1,13 @@
+[project]
+name = "vlm-bridge-for-image-captioning"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "av>=15.0.0",
+    "pillow>=11.3.0",
+    "py7zr>=1.0.0",
+    "webvtt-py>=0.5.1",
+    "yt-dlp>=2025.6.30",
+]
