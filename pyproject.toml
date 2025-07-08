@@ -1,13 +1,23 @@
+[build-system]
+build-backend = "setuptools.build_meta"
+requires = ["setuptools>=65", "wheel"]
+
 [project]
-name = "vlm-bridge-for-image-captioning"
-version = "0.1.0"
-description = "Add your description here"
-readme = "README.md"
-requires-python = ">=3.13"
 dependencies = [
-    "av>=15.0.0",
-    "pillow>=11.3.0",
-    "py7zr>=1.0.0",
-    "webvtt-py>=0.5.1",
-    "yt-dlp>=2025.6.30",
+  "datasets>=2.16.0",
+  "torch>=2.0.0",
+  "pillow>=9.0.0",
+  "transformers>=4.35.0",
+  "numpy>=1.21.0",
 ]
+description = "VLM Bridge for Image Captioning - A modular system for training Vision-Language Models with bridge architectures"
+name = "vlm-bridge-for-image-captioning"
+readme = "README.md"
+requires-python = ">=3.12"
+version = "0.1.0"
+
+[project.scripts]
+vlm-data-pipeline = "vlm_bridge.data_pipeline.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
