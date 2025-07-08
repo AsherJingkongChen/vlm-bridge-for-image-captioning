@@ -6,13 +6,11 @@ as defined in the RED-F project tree. It converts the entire GroundCap dataset
 into a standardized (image_path, caption) format for training.
 """
 
-import multiprocessing
 import re
-import shutil
 from pathlib import Path
 from typing import Dict, Any
 from datasets import Dataset
-import threading
+from multiprocessing import cpu_count
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
@@ -58,7 +56,7 @@ def transform_and_save_images(dataset: Dataset, final_base_dir: str) -> Dataset:
 
     # Process samples in parallel with threading
     transformed_data = [None] * len(dataset)
-    max_workers = min(4, len(dataset))
+    max_workers = cpu_count()
     print(f"  Using {max_workers} threads for parallel JPEG processing...")
 
     def process_sample(i, sample):

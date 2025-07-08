@@ -7,9 +7,8 @@ into train/val/test splits and organizes files into the final directory structur
 """
 
 import json
-import shutil
 from pathlib import Path
-from typing import Dict, Tuple
+from typing import Dict
 from datasets import Dataset
 
 
@@ -43,25 +42,31 @@ def split_and_organize_files(
 
     # Group samples by split
     split_data = {"train": [], "val": [], "test": []}
-    
+
     for sample in transformed_dataset:
         try:
             split_assignments = sample.get("split_assignment", [])
             if not split_assignments:
-                print(f"Warning: Sample {sample.get('original_id', 'unknown')} has no split assignment")
+                print(
+                    f"Warning: Sample {sample.get('original_id', 'unknown')} has no split assignment"
+                )
                 continue
-                
+
             for split_name in split_assignments:
                 if split_name in split_data:
                     split_data[split_name].append(sample)
                 else:
-                    print(f"Warning: Unknown split name '{split_name}' for sample {sample.get('original_id', 'unknown')}")
-                    
+                    print(
+                        f"Warning: Unknown split name '{split_name}' for sample {sample.get('original_id', 'unknown')}"
+                    )
+
         except Exception as e:
             print(f"Error processing sample in split organization: {e}")
             continue
 
-    print(f"Split sizes: train={len(split_data['train'])}, val={len(split_data['val'])}, test={len(split_data['test'])}")
+    print(
+        f"Split sizes: train={len(split_data['train'])}, val={len(split_data['val'])}, test={len(split_data['test'])}"
+    )
 
     # Generate jsonl files for each split
     for split_name, samples in split_data.items():
@@ -87,12 +92,12 @@ def _generate_captions_jsonl(samples: list, base_path: Path, split_name: str) ->
 
     # Prepare captions data
     captions_data = []
-    
+
     for sample in samples:
         # Get image path and make it relative to split directory
         image_path = Path(sample["image_path"])
         relative_path = f"images/{image_path.name}"
-        
+
         # Prepare caption data
         caption_entry = {
             "image_path": relative_path,

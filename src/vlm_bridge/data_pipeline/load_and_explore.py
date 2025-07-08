@@ -51,7 +51,7 @@ def inspect_dataset_structure(dataset: DatasetDict) -> None:
         dataset: The loaded GroundCap dataset
     """
     print("🔍 Loading and exploring GroundCap dataset...")
-    
+
     print("\n" + "=" * 60)
     print("GROUNDCAP DATASET STRUCTURE ANALYSIS")
     print("=" * 60)
@@ -101,5 +101,5 @@ def inspect_dataset_structure(dataset: DatasetDict) -> None:
     print("\n" + "=" * 60)
     print("READY FOR TRANSFORM_FULL_DATASET")
     print("=" * 60)
-    
+
     print("\n✅ Dataset exploration complete!")
