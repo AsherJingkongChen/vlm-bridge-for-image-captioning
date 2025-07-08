@@ -40,6 +40,14 @@ def main():
         help="Output directory for splits (default: data/groundcap/)",
     )
 
+    # Inspect loader command
+    inspect_parser = subparsers.add_parser("inspect-loader", help="Inspect data loader")
+    inspect_parser.add_argument(
+        "--data-dir",
+        default="data/groundcap/",
+        help="Base directory containing train/val/test splits (default: data/groundcap/)",
+    )
+
     args = parser.parse_args()
 
     if not args.command:
@@ -54,7 +62,7 @@ def main():
 
         elif args.command == "transform":
             # Transform dataset - now saves directly to final structure
-            print(f"🔄 Transforming dataset directly to final structure...")
+            print("🔄 Transforming dataset directly to final structure...")
 
             # Load and combine datasets efficiently
             dataset = load_ground_cap()
@@ -129,6 +137,12 @@ def main():
             print("\n" + "=" * 50)
             print("🎉 FULL PIPELINE COMPLETE!")
             print("=" * 50)
+
+        elif args.command == "inspect-loader":
+            # Inspect data loader
+            from .data_loader import inspect_data_loader
+
+            inspect_data_loader(args.data_dir)
 
     except KeyboardInterrupt:
         print("\n❌ Operation cancelled by user")
