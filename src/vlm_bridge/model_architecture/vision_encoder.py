@@ -15,7 +15,6 @@ import torch
 import torch.nn as nn
 from transformers import AutoImageProcessor, AutoModel
 from typing import Dict, Any, Optional
-from PIL import Image
 
 
 class VisionEncoder(nn.Module):

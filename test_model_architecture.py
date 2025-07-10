@@ -197,7 +197,7 @@ def test_full_model_minimal():
     text_embeddings = outputs["text_embeddings"]
     enhanced_embeddings = outputs["enhanced_embeddings"]
 
-    print(f"  Output shapes:")
+    print("  Output shapes:")
     print(f"    Logits: {logits.shape}")
     print(f"    Vision features: {vision_features.shape}")
     print(f"    Enhanced embeddings: {enhanced_embeddings.shape}")
@@ -260,7 +260,7 @@ def test_real_data_sample():
     input_ids = batch["input_ids"][:, :10]  # Limit sequence length
     attention_mask = batch["attention_mask"][:, :10]
 
-    print(f"  Real sample shapes:")
+    print("  Real sample shapes:")
     print(f"    Images: {images.shape}")
     print(f"    Input IDs: {input_ids.shape}")
 
@@ -275,7 +275,7 @@ def test_real_data_sample():
             images=images, input_ids=input_ids, attention_mask=attention_mask
         )
 
-    print(f"  Forward pass successful!")
+    print("  Forward pass successful!")
     print(f"  Output logits shape: {outputs['logits'].shape}")
 
     # Decode sample to verify it's meaningful
