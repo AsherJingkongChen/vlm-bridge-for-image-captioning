@@ -11,7 +11,7 @@ Core Components:
 - FullModel: Complete assembled model for training and inference
 
 Architecture Overview:
-    Image → VisionEncoder → [N, 768] → BridgeModule → [N, 2304] → LanguageModel → Text
+    Image → VisionEncoder → [N, 1024] → BridgeModule → [N, 2304] → LanguageModel → Text
 
 Only the BridgeModule is trainable, keeping the vision and language models frozen.
 """
@@ -21,9 +21,4 @@ from .language_model import LanguageModel
 from .bridge_module import BridgeModule
 from .full_model import FullModel
 
-__all__ = [
-    "VisionEncoder",
-    "LanguageModel", 
-    "BridgeModule",
-    "FullModel"
-]
+__all__ = ["VisionEncoder", "LanguageModel", "BridgeModule", "FullModel"]

@@ -34,7 +34,7 @@ def test_vision_encoder_inference():
     print("Testing VisionEncoder (inference only)...")
 
     # Initialize real DINOv2 model
-    vision_encoder = VisionEncoder("facebook/dinov2-base")
+    vision_encoder = VisionEncoder("facebook/dinov2-large")
     vision_encoder.eval()  # Ensure inference mode
 
     # Small batch size
@@ -49,7 +49,7 @@ def test_vision_encoder_inference():
     print(f"  Vision features shape: {vision_features.shape}")
 
     # Verify output shape
-    expected_shape = (batch_size, 257, 768)
+    expected_shape = (batch_size, 257, 1024)
     assert vision_features.shape == expected_shape, (
         f"Expected {expected_shape}, got {vision_features.shape}"
     )
@@ -116,7 +116,7 @@ def test_bridge_module_inference():
 
     # Initialize bridge module
     bridge = BridgeModule(
-        vision_dim=768,  # DINOv2 output
+        vision_dim=1024,  # DINOv2-Large output
         language_dim=2304,  # Gemma-2-2B dimension
         num_heads=8,
         dropout=0.1,
@@ -128,7 +128,7 @@ def test_bridge_module_inference():
     vision_seq_len = 257  # DINOv2 sequence length
     text_seq_len = 5  # Short sequence
 
-    vision_features = torch.randn(batch_size, vision_seq_len, 768)
+    vision_features = torch.randn(batch_size, vision_seq_len, 1024)
     text_embeddings = torch.randn(batch_size, text_seq_len, 2304)
 
     # Test inference only
@@ -147,7 +147,9 @@ def test_bridge_module_inference():
     # Model info
     info = bridge.get_model_info()
     print(f"  Bridge parameters: {info['total_parameters']:,}")
-    print(f"  Vision→Language projection: 768→2304")
+    print(
+        f"  Vision→Language projection: {info['vision_dim']} → {info['language_dim']}"
+    )
 
     del bridge, enhanced_embeddings
     torch.cuda.empty_cache() if torch.cuda.is_available() else None
@@ -163,7 +165,7 @@ def test_full_model_minimal():
     print("  Loading models (this will take a moment)...")
     # Initialize full model
     full_model = FullModel(
-        vision_model_name="facebook/dinov2-base",
+        vision_model_name="facebook/dinov2-large",
         language_model_name="google/gemma-2-2b",
         bridge_num_heads=8,
         bridge_dropout=0.1,
@@ -202,7 +204,7 @@ def test_full_model_minimal():
 
     # Basic shape validation
     assert logits.shape[:2] == input_ids.shape, "Logits batch/seq should match input"
-    assert vision_features.shape == (batch_size, 257, 768), (
+    assert vision_features.shape == (batch_size, 257, 1024), (
         "Vision features shape incorrect"
     )
     assert enhanced_embeddings.shape == text_embeddings.shape, (
@@ -290,38 +292,6 @@ def test_real_data_sample():
     print("✓ Real data sample test passed!\n")
 
 
-def test_architecture_summary():
-    """Print architecture summary without heavy computation."""
-    print("Architecture Summary:")
-    print("=" * 50)
-
-    print("1. Vision Encoder: facebook/dinov2-base")
-    print("   - Parameters: ~86.6M (frozen)")
-    print("   - Output: [batch, 257, 768]")
-
-    print("\n2. Language Model: google/gemma-2-2b")
-    print("   - Parameters: ~2.6B (frozen)")
-    print("   - Dimension: 2304")
-
-    print("\n3. Bridge Module: Cross-Attention")
-    print("   - Parameters: ~65.5M (trainable)")
-    print("   - Architecture: Transformer Decoder Block")
-    print("   - Role: Vision-aware text embedding layer")
-
-    print("\n4. Complete Architecture:")
-    print("   - Total: ~2.75B parameters")
-    print("   - Trainable: 65.5M (2.38%)")
-    print("   - Type: Encoder-Adapter-Decoder")
-
-    print("\n5. Key Features:")
-    print("   - Only BridgeModule is trainable")
-    print("   - Cross-attention fusion")
-    print("   - Auto-regressive generation ready")
-    print("   - Optimized for efficiency")
-
-    print("\n✓ Architecture summary completed!")
-
-
 if __name__ == "__main__":
     print("Vision-Language Bridge Model - Tests")
     print("=" * 70)
@@ -336,9 +306,6 @@ if __name__ == "__main__":
         # Integration tests
         test_full_model_minimal()
         test_real_data_sample()
-
-        # Summary
-        test_architecture_summary()
 
         print("\n" + "=" * 70)
         print("All tests completed successfully! ✓")

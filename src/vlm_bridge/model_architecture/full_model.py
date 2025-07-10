@@ -32,7 +32,7 @@ class FullModel(nn.Module):
     """
     
     def __init__(self, 
-                 vision_model_name: str = "facebook/dinov2-base",
+                 vision_model_name: str = "facebook/dinov2-large",
                  language_model_name: str = "google/gemma-2-2b",
                  bridge_num_heads: int = 8,
                  bridge_dropout: float = 0.1,

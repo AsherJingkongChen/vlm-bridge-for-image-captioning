@@ -68,7 +68,7 @@ class VLDataset(Dataset):
 
         # Load preprocessors
         self.image_processor = image_processor or AutoImageProcessor.from_pretrained(
-            "facebook/dinov2-base"
+            "facebook/dinov2-large"
         )
         self.tokenizer = tokenizer or AutoTokenizer.from_pretrained("google/gemma-2-2b")
 
@@ -190,7 +190,7 @@ def create_data_loader(
     # Disable pin_memory on MPS (Apple Silicon) as it's not supported
     if torch.backends.mps.is_available() and pin_memory:
         pin_memory = False
-    
+
     return DataLoader(
         dataset,
         batch_size=batch_size,
@@ -222,7 +222,7 @@ def get_data_loaders(
     base_path = Path(base_data_dir)
 
     # Load shared preprocessors once
-    image_processor = AutoImageProcessor.from_pretrained("facebook/dinov2-base")
+    image_processor = AutoImageProcessor.from_pretrained("facebook/dinov2-large")
     tokenizer = AutoTokenizer.from_pretrained("google/gemma-2-2b")
 
     # Create datasets
@@ -316,7 +316,7 @@ def inspect_data_loader(base_output_dir: str = "data/groundcap/") -> None:
                 print("\n    🖼️  Images (for DINOv2 ViT input):")
                 print(f"      - Shape: {batch['images'].shape}")
                 print("      - Format: RGB normalized tensors")
-                print("      - Ready for: facebook/dinov2-base (patch_size=14)")
+                print("      - Ready for: facebook/dinov2-large (patch_size=14)")
 
                 print("\n    💬 Text Tokens (for Gemma-2-2b LM input):")
                 print(f"      - Input IDs shape: {batch['input_ids'].shape}")

@@ -140,7 +140,7 @@ class BridgeModule(nn.Module):
     """
     
     def __init__(self, 
-                 vision_dim: int = 768,
+                 vision_dim: int = 1024,
                  language_dim: int = 2304,
                  num_heads: int = 8,
                  dropout: float = 0.1):
@@ -148,7 +148,7 @@ class BridgeModule(nn.Module):
         Initialize the bridge module.
         
         Args:
-            vision_dim: Vision encoder output dimension (768 for DINOv2)
+            vision_dim: Vision encoder output dimension (1024 for DINOv2-Large)
             language_dim: Language model dimension (2304 for Gemma-2-2B)
             num_heads: Number of attention heads
             dropout: Dropout probability
