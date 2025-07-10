@@ -10,6 +10,9 @@ dependencies = [
   "transformers>=4.35.0",
   "numpy>=1.21.0",
   "torchvision>=0.22.1",
+  "tensorboard>=2.15.0",
+  "tqdm>=4.65.0",
+  "pytest>=7.0.0",
 ]
 description = "VLM Bridge for Image Captioning - A modular system for training Vision-Language Models with bridge architectures"
 name = "vlm-bridge-for-image-captioning"
@@ -19,6 +22,7 @@ version = "0.1.0"
 
 [project.scripts]
 vlm-data-pipeline = "vlm_bridge.data_pipeline.cli:main"
+vlm-training = "vlm_bridge.training_strategy.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
