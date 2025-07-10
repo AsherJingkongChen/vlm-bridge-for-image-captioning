@@ -9,6 +9,7 @@ dependencies = [
   "pillow>=9.0.0",
   "transformers>=4.35.0",
   "numpy>=1.21.0",
+  "torchvision>=0.22.1",
 ]
 description = "VLM Bridge for Image Captioning - A modular system for training Vision-Language Models with bridge architectures"
 name = "vlm-bridge-for-image-captioning"

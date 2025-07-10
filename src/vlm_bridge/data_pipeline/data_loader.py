@@ -187,6 +187,10 @@ def create_data_loader(
     Returns:
         PyTorch DataLoader
     """
+    # Disable pin_memory on MPS (Apple Silicon) as it's not supported
+    if torch.backends.mps.is_available() and pin_memory:
+        pin_memory = False
+    
     return DataLoader(
         dataset,
         batch_size=batch_size,
