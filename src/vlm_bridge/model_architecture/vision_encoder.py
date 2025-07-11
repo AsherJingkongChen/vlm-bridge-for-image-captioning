@@ -51,10 +51,8 @@ class VisionEncoder(nn.Module):
         self.processor = AutoImageProcessor.from_pretrained(model_name, use_fast=True)
         self.model = AutoModel.from_pretrained(model_name)
 
-        # Move model to device with appropriate dtype
+        # Move model to device
         self.model = self.model.to(self.device)
-        if device == "cuda":
-            self.model = self.model.half()  # Convert to float16 on CUDA for consistency
 
         # Freeze all parameters
         self._freeze_parameters()
