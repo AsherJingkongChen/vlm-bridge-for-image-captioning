@@ -108,7 +108,7 @@ def run_training_epoch(context: TrainingContext, epoch: int) -> float:
             writer.add_scalar(
                 "train/learning_rate", optimizer.param_groups[0]["lr"], global_step
             )
-            
+
         # Step learning rate scheduler
         if context.scheduler is not None:
             context.scheduler.step()

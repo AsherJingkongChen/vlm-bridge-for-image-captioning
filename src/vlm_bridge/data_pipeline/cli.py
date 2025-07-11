@@ -12,7 +12,7 @@ import time
 
 from .load_and_explore import load_ground_cap, inspect_dataset_structure
 from .transform_full_dataset import transform_and_save_images
-from .split_and_save import split_and_organize_files, get_split_stats
+from .split_and_save import split_and_organize_files
 
 
 def main():

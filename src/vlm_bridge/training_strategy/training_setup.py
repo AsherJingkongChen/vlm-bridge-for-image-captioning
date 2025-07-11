@@ -6,7 +6,8 @@ hardware configuration, optimizer setup, and logging initialization.
 """
 
 import os
-from dataclasses import dataclass
+import yaml
+from dataclasses import dataclass, asdict
 from pathlib import Path
 from typing import Tuple, Optional
 
@@ -33,7 +34,7 @@ class TrainingConfig:
     weight_decay: float = 0.01
     num_epochs: int = 12  # Adjusted for small dataset size
     gradient_clip_val: float = 0.3  # Stricter clipping for stability
-    
+
     # Learning rate scheduler
     use_scheduler: bool = True
     scheduler_type: str = "cosine"  # "cosine", "linear", or "constant"
@@ -53,7 +54,7 @@ class TrainingConfig:
     # Enhanced validation
     generate_samples_every_n_epochs: int = 5  # Generate samples every N epochs
     num_validation_samples: int = 3  # Number of samples to generate for inspection
-    
+
     # Early stopping (for 48k dataset to prevent overfitting)
     use_early_stopping: bool = True
     early_stopping_patience: int = 3  # Stop if no improvement for N epochs
@@ -64,6 +65,35 @@ class TrainingConfig:
 
     # Resume training
     resume_from_checkpoint: Optional[str] = None
+
+    @classmethod
+    def from_yaml(cls, config_path: str) -> "TrainingConfig":
+        """Load configuration from YAML file."""
+        config_path = Path(config_path)
+
+        if not config_path.exists():
+            print(f"[Config] Config file not found: {config_path}")
+            print("[Config] Using default configuration")
+            return cls()
+
+        print(f"[Config] Loading configuration from: {config_path}")
+
+        with open(config_path, "r") as f:
+            config_dict = yaml.safe_load(f)
+
+        # Filter only known fields to avoid unexpected arguments
+        valid_fields = {field.name for field in cls.__dataclass_fields__.values()}
+        filtered_config = {k: v for k, v in config_dict.items() if k in valid_fields}
+
+        return cls(**filtered_config)
+
+    def to_yaml(self, config_path: str) -> None:
+        """Save configuration to YAML file."""
+        config_path = Path(config_path)
+        config_path.parent.mkdir(parents=True, exist_ok=True)
+
+        with open(config_path, "w") as f:
+            yaml.dump(asdict(self), f, default_flow_style=False, indent=2)
 
 
 @dataclass
@@ -125,7 +155,7 @@ def prepare_environment(config: TrainingConfig) -> TrainingContext:
 
     # 4. Create optimizer
     optimizer = create_optimizer(model, config)
-    
+
     # 5. Create learning rate scheduler
     scheduler = create_scheduler(optimizer, config, len(train_loader))
 
@@ -256,43 +286,41 @@ def create_scheduler(
 ) -> Optional[torch.optim.lr_scheduler.LRScheduler]:
     """
     Create learning rate scheduler based on configuration.
-    
+
     Args:
         optimizer: The optimizer to schedule
         config: Training configuration
         steps_per_epoch: Number of steps per epoch
-        
+
     Returns:
         LR scheduler or None if disabled
     """
     if not config.use_scheduler:
         print("[Scheduler] Learning rate scheduler disabled")
         return None
-    
+
     total_steps = config.num_epochs * steps_per_epoch
-    
+
     if config.scheduler_type == "cosine":
         scheduler = CosineAnnealingLR(
-            optimizer,
-            T_max=total_steps,
-            eta_min=config.min_lr
+            optimizer, T_max=total_steps, eta_min=config.min_lr
         )
         print(f"[Scheduler] Cosine annealing: {config.learning_rate} → {config.min_lr}")
-        
+
     elif config.scheduler_type == "linear":
         scheduler = LinearLR(
             optimizer,
             start_factor=1.0,
             end_factor=config.min_lr / config.learning_rate,
-            total_iters=total_steps
+            total_iters=total_steps,
         )
         print(f"[Scheduler] Linear decay: {config.learning_rate} → {config.min_lr}")
-        
+
     elif config.scheduler_type == "constant":
         scheduler = ConstantLR(optimizer, factor=1.0, total_iters=total_steps)
         print(f"[Scheduler] Constant learning rate: {config.learning_rate}")
-        
+
     else:
         raise ValueError(f"Unknown scheduler type: {config.scheduler_type}")
-    
+
     return scheduler

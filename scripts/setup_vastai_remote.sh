@@ -59,29 +59,15 @@ fi
 if [ ! -d "data/groundcap/train" ]; then
     echo ""
     echo "📊 Processing GroundCap dataset..."
-    uv run vlm-data-pipeline transform
+    uv run vlm-data transform
 else
     echo "✅ Dataset already processed"
 fi
-
-# Training configuration
-BATCH_SIZE=${BATCH_SIZE:-8}
-EPOCHS=${EPOCHS:-10}
-LEARNING_RATE=${LEARNING_RATE:-5e-5}
-CHECKPOINT_DIR=${CHECKPOINT_DIR:-checkpoints/experiment}
-LOG_DIR=${LOG_DIR:-logs/experiment}
 
 echo ""
 echo "=================================================="
 echo "Setup Complete! Ready to train."
 echo "=================================================="
-echo ""
-echo "Training configuration:"
-echo "  Batch size: $BATCH_SIZE"
-echo "  Epochs: $EPOCHS"
-echo "  Learning rate: $LEARNING_RATE"
-echo "  Checkpoint dir: $CHECKPOINT_DIR"
-echo "  Log dir: $LOG_DIR"
 echo ""
 
 # Start TensorBoard in background
@@ -91,25 +77,7 @@ TENSORBOARD_PID=$!
 echo "TensorBoard PID: $TENSORBOARD_PID"
 
 # Start training
-uv run vlm-training train \
-    --data-dir data/groundcap \
-    --batch-size $BATCH_SIZE \
-    --epochs $EPOCHS \
-    --learning-rate $LEARNING_RATE \
-    --checkpoint-dir $CHECKPOINT_DIR \
-    --log-dir $LOG_DIR
-
-echo ""
-echo "=================================================="
-echo "✅ Training complete!"
-echo "=================================================="
-echo ""
-echo "Results saved to:"
-echo "  Checkpoints: $CHECKPOINT_DIR"
-echo "  Logs: $LOG_DIR"
-echo ""
-echo "Best model: $CHECKPOINT_DIR/best_model.pth"
-echo ""
+uv run vlm-training train
 
 # Kill TensorBoard
 kill $TENSORBOARD_PID 2>/dev/null || true

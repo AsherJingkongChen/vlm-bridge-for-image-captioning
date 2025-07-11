@@ -239,7 +239,7 @@ def test_real_data_sample():
     data_dir = Path("data/groundcap/train")
     if not data_dir.exists():
         print("  ⚠️  GroundCap data not found. Skipping real data test.")
-        print("  Run: uv run vlm-data-pipeline full --output-dir data/groundcap/")
+        print("  Run: uv run vlm-data full --output-dir data/groundcap/")
         return
 
     # Load minimal dataset

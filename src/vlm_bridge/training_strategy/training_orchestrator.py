@@ -62,10 +62,17 @@ def execute_full_training(config: TrainingConfig) -> None:
                         improvement = context.best_val_loss - val_loss
                         if improvement < config.early_stopping_min_delta:
                             context.early_stopping_counter += 1
-                            print(f"[Orchestrator] No improvement for {context.early_stopping_counter} epochs")
-                            
-                            if context.early_stopping_counter >= config.early_stopping_patience:
-                                print(f"[Orchestrator] Early stopping triggered after {context.early_stopping_counter} epochs without improvement")
+                            print(
+                                f"[Orchestrator] No improvement for {context.early_stopping_counter} epochs"
+                            )
+
+                            if (
+                                context.early_stopping_counter
+                                >= config.early_stopping_patience
+                            ):
+                                print(
+                                    f"[Orchestrator] Early stopping triggered after {context.early_stopping_counter} epochs without improvement"
+                                )
                                 save_checkpoint(context, epoch, is_best=False)
                                 break
 
@@ -75,10 +82,10 @@ def execute_full_training(config: TrainingConfig) -> None:
             # Save checkpoint periodically even without validation
             elif (epoch + 1) % config.save_every_n_epochs == 0:
                 save_checkpoint(context, epoch, is_best=False)
-                
+
     except KeyboardInterrupt:
         print(f"\n[Orchestrator] Training interrupted at epoch {epoch + 1}")
-        print(f"[Orchestrator] Saving emergency checkpoint...")
+        print("[Orchestrator] Saving emergency checkpoint...")
         save_checkpoint(context, epoch, is_best=False)
         print(f"[Orchestrator] Emergency checkpoint saved to: {context.checkpoint_dir}")
         raise
@@ -120,11 +127,11 @@ def save_checkpoint(
     # Save GradScaler state if using it
     if context.scaler is not None:
         checkpoint["scaler_state_dict"] = context.scaler.state_dict()
-        
+
     # Save scheduler state if using it
     if context.scheduler is not None:
         checkpoint["scheduler_state_dict"] = context.scheduler.state_dict()
-        
+
     # Save early stopping counter
     checkpoint["early_stopping_counter"] = context.early_stopping_counter
 
@@ -171,7 +178,7 @@ def load_checkpoint(context: TrainingContext, checkpoint_path: str) -> None:
     # Restore GradScaler state if present
     if "scaler_state_dict" in checkpoint and context.scaler is not None:
         context.scaler.load_state_dict(checkpoint["scaler_state_dict"])
-        
+
     # Restore scheduler state if present
     if "scheduler_state_dict" in checkpoint and context.scheduler is not None:
         context.scheduler.load_state_dict(checkpoint["scheduler_state_dict"])

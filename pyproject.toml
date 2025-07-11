@@ -22,7 +22,7 @@ requires-python = ">=3.12"
 version = "0.1.0"
 
 [project.scripts]
-vlm-data-pipeline = "vlm_bridge.data_pipeline.cli:main"
+vlm-data = "vlm_bridge.data_pipeline.cli:main"
 vlm-training = "vlm_bridge.training_strategy.cli:main"
 
 [tool.setuptools.packages.find]

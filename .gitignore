@@ -45,10 +45,14 @@ venv.bak/
 ehthumbs.db
 Thumbs.db
 
-# Project specific
-dataset.7z
+# Data files
+*.csv
+*.tsv
+*.zip
 *.7z
+
+# Project specific
 data/
 logs/
-outputs/
 temp/
+checkpoints/

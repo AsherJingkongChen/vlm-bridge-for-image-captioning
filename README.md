@@ -51,25 +51,42 @@ uv run vlm-data inspect-loader --data-dir data/groundcap
 
 ### Training
 
-Start training with default settings:
+Start training with configuration files:
 
 ```bash
-# Basic training (default: batch_size=8, epochs=12, lr=1e-5)
-uv run vlm-training train --data-dir data/groundcap
+# Basic training with default configuration
+uv run vlm-training
 
-# Custom configuration
-uv run vlm-training train \
-    --batch-size 16 \
-    --epochs 15 \
-    --learning-rate 2e-5 \
-    --checkpoint-dir checkpoints/exp_001 \
-    --log-dir logs/exp_001
+# Use custom configuration file
+uv run vlm-training --config config/training-default.yaml
 
 # Resume from checkpoint
-uv run vlm-training train --resume checkpoints/exp_001/latest_checkpoint.pth
+uv run vlm-training --resume checkpoints/latest_checkpoint.pth
 
-# Validate trained model
-uv run vlm-training validate --checkpoint checkpoints/exp_001/best_model.pth
+# Resume with custom config
+uv run vlm-training --config config/training-default.yaml --resume checkpoints/latest_checkpoint.pth
+```
+
+### Configuration Management
+
+Training parameters are managed through YAML configuration files:
+
+```bash
+# View default configuration
+cat config/training-default.yaml
+
+# Create custom configuration by copying and editing
+cp config/training-default.yaml config/training-default.yaml
+# Edit config/training-default.yaml with your preferred settings
+
+# Key configuration parameters (see config/training-default.yaml):
+# - learning_rate: 1e-5 (conservative for 48k dataset)
+# - num_epochs: 12 (adjusted for dataset size)
+# - batch_size: 8 (fits most GPUs)
+# - gradient_clip_val: 0.3 (strict for stability)
+# - use_early_stopping: true (patience: 3 epochs)
+# - use_scheduler: true (cosine annealing)
+# - amp_dtype: bfloat16 (best for A100)
 ```
 
 ## 🖥️ Training on vast.ai
@@ -170,14 +187,17 @@ Text → Tokenizer → Text Embeddings ↗
 ### Monitoring (Multi-Stage Expectations)
 
 **🔴 Initial Stage (Epoch 1-3):**
+
 -   Validation Loss: 6.0 → 3.5
 -   Perplexity: 400+ → 30-50
 
 **🟡 Mid Stage (Epoch 4-8):**
--   Validation Loss: 3.5 → 2.2  
+
+-   Validation Loss: 3.5 → 2.2
 -   Perplexity: 30-50 → 9-15
 
 **🟢 Final Stage (Epoch 9-12):**
+
 -   Validation Loss: 2.2 → 1.8
 -   Perplexity: 9-15 → 6-12
 
@@ -211,6 +231,8 @@ vlm-bridge-for-image-captioning/
 │   ├── data_pipeline/          # Data processing modules
 │   ├── model_architecture/     # Model components
 │   └── training_strategy/      # Training logic
+├── config/                     # Training configurations
+│   └── training-default.yaml  # Default training parameters
 ├── scripts/
 │   ├── setup_vastai_remote.sh  # vast.ai setup script
 │   └── control_vastai_local.sh # Local controlling script
@@ -227,11 +249,13 @@ vlm-bridge-for-image-captioning/
 After 12 epochs of training on 48k dataset:
 
 **Success Thresholds:**
+
 -   **Basic Performance**: Perplexity < 15 (considering dataset size)
 -   **Good Performance**: Perplexity < 10
 -   **Excellent Performance**: Perplexity < 8
 
 **Outcomes:**
+
 -   Meaningful captions for unseen images
 -   Good generalization within domain
 -   Training time: ~30 min/epoch on A100
