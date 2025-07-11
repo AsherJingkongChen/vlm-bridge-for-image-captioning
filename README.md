@@ -94,14 +94,16 @@ This script will:
 ```bash
 # On your local machine
 wget https://raw.githubusercontent.com/AsherJingkongChen/vlm-bridge-for-image-captioning/main/scripts/control_vastai_local.sh
-bash control_vastai_local.sh user@your-vast-instance.com monitor
+
+# Monitor training progress with SSH key and port
+bash control_vastai_local.sh root@ssh2.vast.ai monitor -p 12345 -i ~/.ssh/id_ed25519
 ```
 
 ### Download Checkpoints to Local Machine
 
 ```bash
-# On your local machine
-bash control_vastai_local.sh user@your-vast-instance.com download
+# Download checkpoints with SSH key and port
+bash control_vastai_local.sh root@ssh2.vast.ai download -p 12345 -i ~/.ssh/id_ed25519
 ```
 
 Then open http://localhost:6006 for TensorBoard.

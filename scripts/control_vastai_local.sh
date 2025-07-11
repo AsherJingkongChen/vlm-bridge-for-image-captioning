@@ -8,25 +8,74 @@ echo "=================================================="
 echo "VLM Bridge Training Controller (Local)"
 echo "=================================================="
 
-# Check if host is provided
-if [ -z "$1" ]; then
-    echo "Usage: $0 user@vast-instance.com [command]"
+# Parse arguments
+VAST_HOST=""
+COMMAND=""
+SSH_KEY=""
+SSH_PORT=""
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -i|--identity)
+            SSH_KEY="$2"
+            shift 2
+            ;;
+        -p|--port)
+            SSH_PORT="$2"
+            shift 2
+            ;;
+        *)
+            if [ -z "$VAST_HOST" ]; then
+                VAST_HOST="$1"
+            elif [ -z "$COMMAND" ]; then
+                COMMAND="$1"
+            fi
+            shift
+            ;;
+    esac
+done
+
+# Check if host and command are provided
+if [ -z "$VAST_HOST" ] || [ -z "$COMMAND" ]; then
+    echo "Usage: $0 <user@host> <command> [-i ssh_key_path] [-p port]"
     echo ""
     echo "Commands:"
     echo "  monitor   - Create TensorBoard tunnel"
     echo "  download  - Download checkpoints"
     echo ""
+    echo "Options:"
+    echo "  -i, --identity  SSH private key path"
+    echo "  -p, --port      SSH port number"
+    echo ""
+    echo "Examples:"
+    echo "  $0 root@ssh1.vast.ai download -p 12345"
+    echo "  $0 root@ssh2.vast.ai download -p 23456 -i ~/.ssh/id_ed25519"
+    echo "  $0 root@ssh3.vast.ai monitor  -p 34567 -i ~/.ssh/id_ed25519"
+    echo ""
     exit 1
 fi
 
-VAST_HOST=$1
-COMMAND=$2
+# Build SSH command options
+SSH_OPTS="-q -o ConnectTimeout=5"
+if [ -n "$SSH_KEY" ]; then
+    if [ ! -f "$SSH_KEY" ]; then
+        echo "❌ SSH key file not found: $SSH_KEY"
+        exit 1
+    fi
+    SSH_OPTS="$SSH_OPTS -i $SSH_KEY"
+fi
+if [ -n "$SSH_PORT" ]; then
+    SSH_OPTS="$SSH_OPTS -p $SSH_PORT"
+fi
 
 # Test SSH connection
 echo "🔗 Testing connection to $VAST_HOST..."
-if ! ssh -q -o ConnectTimeout=5 $VAST_HOST "echo 'Connected'"; then
+if [ -n "$SSH_KEY" ]; then
+    echo "Using SSH key: $SSH_KEY"
+fi
+if ! ssh $SSH_OPTS $VAST_HOST "echo 'Connected'"; then
     echo "❌ Failed to connect to $VAST_HOST"
-    echo "Please check your SSH connection"
+    echo "Please check your SSH connection and key file"
     exit 1
 fi
 
@@ -46,7 +95,7 @@ case $COMMAND in
         
         # Create SSH tunnel with auto-reconnect
         while true; do
-            ssh -N -L 6006:localhost:6006 $VAST_HOST || {
+            ssh $SSH_OPTS -N -L 6006:localhost:6006 $VAST_HOST || {
                 echo ""
                 echo "🔄 Connection lost. Reconnecting in 5 seconds..."
                 sleep 5
@@ -60,7 +109,7 @@ case $COMMAND in
         
         # List available checkpoints
         echo "Available checkpoints:"
-        ssh $VAST_HOST "cd vlm-bridge && find checkpoints -name '*.pth' -type f" || {
+        ssh $SSH_OPTS $VAST_HOST "cd vlm-bridge-for-image-captioning && find checkpoints -name '*.pth' -type f" || {
             echo "No checkpoints found or unable to list"
             exit 1
         }
@@ -77,22 +126,34 @@ case $COMMAND in
         # Create local checkpoint directory
         mkdir -p checkpoints
         
+        # Build SCP/rsync options from SSH options
+        SCP_OPTS=""
+        RSYNC_SSH_CMD="ssh"
+        if [ -n "$SSH_KEY" ]; then
+            SCP_OPTS="$SCP_OPTS -i $SSH_KEY"
+            RSYNC_SSH_CMD="$RSYNC_SSH_CMD -i $SSH_KEY"
+        fi
+        if [ -n "$SSH_PORT" ]; then
+            SCP_OPTS="$SCP_OPTS -P $SSH_PORT"
+            RSYNC_SSH_CMD="$RSYNC_SSH_CMD -p $SSH_PORT"
+        fi
+
         case $choice in
             1)
                 echo "Downloading best_model.pth..."
-                scp $VAST_HOST:vlm-bridge/checkpoints/*/best_model.pth checkpoints/ || echo "File not found"
+                scp $SCP_OPTS $VAST_HOST:vlm-bridge-for-image-captioning/checkpoints/*/best_model.pth checkpoints/ || echo "File not found"
                 ;;
             2)
                 echo "Downloading latest_checkpoint.pth..."
-                scp $VAST_HOST:vlm-bridge/checkpoints/*/latest_checkpoint.pth checkpoints/ || echo "File not found"
+                scp $SCP_OPTS $VAST_HOST:vlm-bridge-for-image-captioning/checkpoints/*/latest_checkpoint.pth checkpoints/ || echo "File not found"
                 ;;
             3)
                 echo "Downloading best_model_weights_only.pth..."
-                scp $VAST_HOST:vlm-bridge/checkpoints/*/best_model_weights_only.pth checkpoints/ || echo "File not found"
+                scp $SCP_OPTS $VAST_HOST:vlm-bridge-for-image-captioning/checkpoints/*/best_model_weights_only.pth checkpoints/ || echo "File not found"
                 ;;
             4)
                 echo "Downloading all checkpoints..."
-                rsync -avz --progress $VAST_HOST:vlm-bridge/checkpoints/ checkpoints/
+                rsync -avz --progress -e "$RSYNC_SSH_CMD" $VAST_HOST:vlm-bridge-for-image-captioning/checkpoints/ checkpoints/
                 ;;
             *)
                 echo "Invalid choice"
@@ -106,8 +167,8 @@ case $COMMAND in
         ;;
         
     *)
-        echo "Unknown command: $COMMAND"
-        echo "Use 'monitor' or 'download'"
+        echo "❌ Invalid command: $COMMAND"
+        echo "Valid commands are: monitor, download"
         exit 1
         ;;
 esac

@@ -48,7 +48,7 @@ source .venv/bin/activate
 if [ -z "$HF_TOKEN" ]; then
     echo ""
     echo "🔑 HuggingFace token required for Gemma-2-2B access"
-    echo "Please enter your HuggingFace token:"
+    echo "Please enter your HuggingFace token (HF_TOKEN):"
     read -s HF_TOKEN
     export HF_TOKEN
 fi
@@ -84,15 +84,11 @@ echo ""
 
 # Start TensorBoard in background
 echo "🔧 Starting TensorBoard on port 6006..."
-tensorboard --logdir $LOG_DIR --host 0.0.0.0 --port 6006 &
+uv run tensorboard --logdir $LOG_DIR --host 0.0.0.0 --port 6006 &
 TENSORBOARD_PID=$!
 echo "TensorBoard PID: $TENSORBOARD_PID"
 
 # Start training
-echo ""
-echo "🚀 Starting training..."
-echo "=================================================="
-
 uv run vlm-training train \
     --data-dir data/groundcap \
     --batch-size $BATCH_SIZE \
