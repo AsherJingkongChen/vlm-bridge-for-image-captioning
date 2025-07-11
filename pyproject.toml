@@ -13,6 +13,7 @@ dependencies = [
   "tensorboard>=2.15.0",
   "tqdm>=4.65.0",
   "pytest>=7.0.0",
+  "accelerate>=0.25.0",
 ]
 description = "VLM Bridge for Image Captioning - A modular system for training Vision-Language Models with bridge architectures"
 name = "vlm-bridge-for-image-captioning"

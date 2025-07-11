@@ -4,9 +4,11 @@
 
 set -e  # Exit on error
 
+echo ""
 echo "=================================================="
 echo "VLM Bridge Training Setup for vast.ai"
 echo "=================================================="
+echo ""
 
 # Check if we're on a GPU instance
 if ! command -v nvidia-smi &> /dev/null; then
