@@ -64,13 +64,17 @@ class FullModel(nn.Module):
         self.vision_encoder = VisionEncoder(vision_model_name, device)
         self.language_model = LanguageModel(language_model_name, device)
 
-        # Initialize bridge module with correct dimensions
+        # Initialize bridge module with correct dimensions and data type
         self.bridge_module = BridgeModule(
             vision_dim=self.vision_encoder.output_dim,
             language_dim=self.language_model.output_dim,
             num_heads=bridge_num_heads,
             dropout=bridge_dropout,
         ).to(device)
+        
+        # Set bridge module to same data type as language model
+        if device == "cuda":
+            self.bridge_module = self.bridge_module.half()  # Convert to float16
 
         # Cache model info
         self.vision_dim = self.vision_encoder.output_dim
