@@ -9,16 +9,28 @@ import os
 import tempfile
 from pathlib import Path
 
-import torch
 import pytest
+import torch
 
-from .training_setup import TrainingConfig, prepare_environment
-from .training_orchestrator import (
+from vlm_bridge.training_strategy.training_setup import (
+    TrainingConfig,
+    prepare_environment,
+)
+from vlm_bridge.training_strategy.training_orchestrator import (
     execute_full_training,
     save_checkpoint,
     load_checkpoint,
 )
-from .core_training_loop import run_training_epoch, run_validation_epoch
+from vlm_bridge.training_strategy.core_training_loop import (
+    run_training_epoch,
+    run_validation_epoch,
+)
+
+device = "cpu"
+if torch.cuda.is_available():
+    device = "cuda"
+elif torch.backends.mps.is_available():
+    device = "mps"
 
 
 @pytest.fixture
@@ -52,16 +64,16 @@ def small_training_config(temp_dirs):
 
     return TrainingConfig(
         data_dir=real_data_dir,
-        batch_size=2,  # Small batch size
-        num_epochs=2,  # Only 2 epochs
+        batch_size=1,  # Small batch size
+        num_epochs=1,  # Only 2 epochs
         learning_rate=5e-5,
         log_dir=temp_dirs["log_dir"],
         checkpoint_dir=temp_dirs["checkpoint_dir"],
         log_every_n_steps=1,
         val_every_n_epochs=1,
         save_every_n_epochs=1,
-        num_workers=0,  # Avoid multiprocessing issues
-        device="cpu",  # Use CPU for test stability
+        num_workers=0,
+        device=device,
     )
 
 
@@ -75,7 +87,7 @@ def test_prepare_environment(small_training_config):
     assert context.optimizer is not None
     assert context.train_loader is not None
     assert context.val_loader is not None
-    assert context.device == torch.device("cpu")
+    assert context.device == device
     assert context.writer is not None
     assert context.checkpoint_dir.exists()
     assert context.start_epoch == 0

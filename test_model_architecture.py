@@ -17,9 +17,6 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
 os.environ["TRANSFORMERS_VERBOSITY"] = "warning"
 
-# Add the src directory to the path
-sys.path.append(os.path.join(os.path.dirname(__file__), "src"))
-
 from vlm_bridge.model_architecture import (
     VisionEncoder,
     LanguageModel,

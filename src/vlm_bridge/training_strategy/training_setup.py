@@ -61,7 +61,7 @@ class TrainingContext:
     train_loader: torch.utils.data.DataLoader
     val_loader: torch.utils.data.DataLoader
     device: torch.device
-    scaler: Optional[torch.cuda.amp.GradScaler]
+    scaler: Optional[torch.amp.GradScaler]
     writer: SummaryWriter
     checkpoint_dir: Path
     start_epoch: int = 0
@@ -139,7 +139,7 @@ def prepare_environment(config: TrainingConfig) -> TrainingContext:
 
 def configure_hardware_and_precision(
     config: TrainingConfig,
-) -> Tuple[torch.device, Optional[torch.cuda.amp.GradScaler]]:
+) -> Tuple[torch.device, Optional[torch.amp.GradScaler]]:
     """
     Configure training device and mixed precision based on hardware capabilities.
     """
@@ -163,7 +163,7 @@ def configure_hardware_and_precision(
     scaler = None
     if config.use_amp and device.type == "cuda":
         # CUDA supports GradScaler
-        scaler = torch.cuda.amp.GradScaler()
+        scaler = torch.amp.GradScaler("cuda")
         print(f"[Hardware] Mixed precision training enabled ({config.amp_dtype})")
     elif config.use_amp and device.type == "mps":
         # MPS doesn't need GradScaler but supports autocast
