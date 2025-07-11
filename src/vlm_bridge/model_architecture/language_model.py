@@ -133,13 +133,14 @@ class LanguageModel(nn.Module):
         if attention_mask is not None:
             attention_mask = attention_mask.to(self.device)
 
-        # Forward pass without gradients (frozen model)
-        with torch.no_grad():
-            outputs = self.model(
-                inputs_embeds=inputs_embeds,
-                attention_mask=attention_mask,
-                return_dict=True,
-            )
+        # Forward pass - allow gradients to flow through frozen model
+        # Note: Model weights are frozen via requires_grad=False, but we need
+        # gradient flow for backpropagation to trainable BridgeModule
+        outputs = self.model(
+            inputs_embeds=inputs_embeds,
+            attention_mask=attention_mask,
+            return_dict=True,
+        )
 
         return outputs.logits
 
@@ -156,9 +157,10 @@ class LanguageModel(nn.Module):
         # Move inputs to device
         input_ids = input_ids.to(self.device)
 
-        # Get embeddings from the model
-        with torch.no_grad():
-            embeddings = self.model.get_input_embeddings()(input_ids)
+        # Get embeddings from the model - allow gradients to flow through
+        # Note: Embedding weights are frozen via requires_grad=False, but we need
+        # gradient flow for backpropagation to trainable BridgeModule
+        embeddings = self.model.get_input_embeddings()(input_ids)
 
         return embeddings
 
