@@ -70,6 +70,8 @@ echo "Setup Complete! Ready to train."
 echo "=================================================="
 echo ""
 
+LOG_DIR=${LOG_DIR:-"logs/experiment"}
+
 # Start TensorBoard in background
 echo "🔧 Starting TensorBoard on port 6006..."
 uv run tensorboard --logdir $LOG_DIR --host 0.0.0.0 --port 6006 &
