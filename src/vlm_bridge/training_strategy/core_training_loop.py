@@ -61,7 +61,8 @@ def run_training_epoch(context: TrainingContext, epoch: int) -> float:
         if config.use_amp and device.type in ["cuda", "mps"]:
             with autocast(device_type=device.type, dtype=amp_dtype):
                 # Forward pass
-                logits = model(images, input_ids, attention_mask)
+                outputs = model(images, input_ids, attention_mask)
+                logits = outputs["logits"]
 
                 # Compute loss
                 loss_fn = nn.CrossEntropyLoss(ignore_index=-100)
@@ -74,7 +75,8 @@ def run_training_epoch(context: TrainingContext, epoch: int) -> float:
                 loss.backward()
         else:
             # Full precision training
-            logits = model(images, input_ids, attention_mask)
+            outputs = model(images, input_ids, attention_mask)
+            logits = outputs["logits"]
             loss_fn = nn.CrossEntropyLoss(ignore_index=-100)
             loss = loss_fn(logits.view(-1, logits.size(-1)), labels.view(-1))
             loss.backward()
@@ -156,14 +158,16 @@ def run_validation_epoch(context: TrainingContext, epoch: int) -> Tuple[float, f
             if config.use_amp and device.type in ["cuda", "mps"]:
                 with autocast(device_type=device.type, dtype=amp_dtype):
                     # Forward pass
-                    logits = model(images, input_ids, attention_mask)
+                    outputs = model(images, input_ids, attention_mask)
+                    logits = outputs["logits"]
 
                     # Compute loss
                     loss_fn = nn.CrossEntropyLoss(ignore_index=-100)
                     loss = loss_fn(logits.view(-1, logits.size(-1)), labels.view(-1))
             else:
                 # Full precision inference
-                logits = model(images, input_ids, attention_mask)
+                outputs = model(images, input_ids, attention_mask)
+                logits = outputs["logits"]
                 loss_fn = nn.CrossEntropyLoss(ignore_index=-100)
                 loss = loss_fn(logits.view(-1, logits.size(-1)), labels.view(-1))
 
