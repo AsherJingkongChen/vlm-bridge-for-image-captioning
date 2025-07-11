@@ -34,33 +34,54 @@ def execute_full_training(config: TrainingConfig) -> None:
         print(f"[Orchestrator] Resuming from epoch {context.start_epoch}")
 
     # 3. Main training loop
-    for epoch in range(context.start_epoch, config.num_epochs):
-        print(f"\n{'=' * 60}")
-        print(f"Epoch {epoch + 1}/{config.num_epochs}")
-        print(f"{'=' * 60}")
+    try:
+        for epoch in range(context.start_epoch, config.num_epochs):
+            print(f"\n{'=' * 60}")
+            print(f"Epoch {epoch + 1}/{config.num_epochs}")
+            print(f"{'=' * 60}")
 
-        # Execute training epoch
-        train_loss = run_training_epoch(context, epoch)
+            # Execute training epoch
+            train_loss = run_training_epoch(context, epoch)
 
-        # Log epoch training loss to TensorBoard
-        context.writer.add_scalar("epoch/train_loss", train_loss, epoch)
+            # Log epoch training loss to TensorBoard
+            context.writer.add_scalar("epoch/train_loss", train_loss, epoch)
 
-        # Execute validation based on frequency
-        if (epoch + 1) % config.val_every_n_epochs == 0:
-            val_loss, perplexity = run_validation_epoch(context, epoch)
+            # Execute validation based on frequency
+            if (epoch + 1) % config.val_every_n_epochs == 0:
+                val_loss, perplexity = run_validation_epoch(context, epoch)
 
-            # Check if this is the best model
-            is_best = val_loss < context.best_val_loss
-            if is_best:
-                context.best_val_loss = val_loss
-                print(f"[Orchestrator] New best validation loss: {val_loss:.4f}")
+                # Check if this is the best model
+                is_best = val_loss < context.best_val_loss
+                if is_best:
+                    context.best_val_loss = val_loss
+                    context.early_stopping_counter = 0  # Reset counter
+                    print(f"[Orchestrator] New best validation loss: {val_loss:.4f}")
+                else:
+                    # Check early stopping
+                    if config.use_early_stopping:
+                        improvement = context.best_val_loss - val_loss
+                        if improvement < config.early_stopping_min_delta:
+                            context.early_stopping_counter += 1
+                            print(f"[Orchestrator] No improvement for {context.early_stopping_counter} epochs")
+                            
+                            if context.early_stopping_counter >= config.early_stopping_patience:
+                                print(f"[Orchestrator] Early stopping triggered after {context.early_stopping_counter} epochs without improvement")
+                                save_checkpoint(context, epoch, is_best=False)
+                                break
 
-            # Save checkpoint
-            save_checkpoint(context, epoch, is_best)
+                # Save checkpoint
+                save_checkpoint(context, epoch, is_best)
 
-        # Save checkpoint periodically even without validation
-        elif (epoch + 1) % config.save_every_n_epochs == 0:
-            save_checkpoint(context, epoch, is_best=False)
+            # Save checkpoint periodically even without validation
+            elif (epoch + 1) % config.save_every_n_epochs == 0:
+                save_checkpoint(context, epoch, is_best=False)
+                
+    except KeyboardInterrupt:
+        print(f"\n[Orchestrator] Training interrupted at epoch {epoch + 1}")
+        print(f"[Orchestrator] Saving emergency checkpoint...")
+        save_checkpoint(context, epoch, is_best=False)
+        print(f"[Orchestrator] Emergency checkpoint saved to: {context.checkpoint_dir}")
+        raise
 
     # 4. Training complete
     print("\n" + "=" * 80)
@@ -99,6 +120,13 @@ def save_checkpoint(
     # Save GradScaler state if using it
     if context.scaler is not None:
         checkpoint["scaler_state_dict"] = context.scaler.state_dict()
+        
+    # Save scheduler state if using it
+    if context.scheduler is not None:
+        checkpoint["scheduler_state_dict"] = context.scheduler.state_dict()
+        
+    # Save early stopping counter
+    checkpoint["early_stopping_counter"] = context.early_stopping_counter
 
     # Save latest checkpoint
     latest_path = context.checkpoint_dir / "latest_checkpoint.pth"
@@ -143,10 +171,15 @@ def load_checkpoint(context: TrainingContext, checkpoint_path: str) -> None:
     # Restore GradScaler state if present
     if "scaler_state_dict" in checkpoint and context.scaler is not None:
         context.scaler.load_state_dict(checkpoint["scaler_state_dict"])
+        
+    # Restore scheduler state if present
+    if "scheduler_state_dict" in checkpoint and context.scheduler is not None:
+        context.scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
 
     # Restore training state
     context.start_epoch = checkpoint["epoch"]
     context.best_val_loss = checkpoint.get("best_val_loss", float("inf"))
+    context.early_stopping_counter = checkpoint.get("early_stopping_counter", 0)
 
     print(
         f"[Checkpoint] Successfully loaded! Resuming from epoch {context.start_epoch}"

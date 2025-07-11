@@ -12,6 +12,7 @@ from typing import Tuple, Optional
 
 import torch
 from torch.optim import AdamW
+from torch.optim.lr_scheduler import CosineAnnealingLR, LinearLR, ConstantLR
 from torch.utils.tensorboard import SummaryWriter
 
 from ..model_architecture import FullModel
@@ -28,10 +29,15 @@ class TrainingConfig:
     num_workers: int = 4
 
     # Training parameters
-    learning_rate: float = 5e-5
+    learning_rate: float = 1e-5  # Reduced for 48k dataset to prevent overfitting
     weight_decay: float = 0.01
-    num_epochs: int = 10
-    gradient_clip_val: float = 1.0
+    num_epochs: int = 12  # Adjusted for small dataset size
+    gradient_clip_val: float = 0.3  # Stricter clipping for stability
+    
+    # Learning rate scheduler
+    use_scheduler: bool = True
+    scheduler_type: str = "cosine"  # "cosine", "linear", or "constant"
+    min_lr: float = 1e-6  # Minimum learning rate for cosine decay
 
     # Mixed precision
     use_amp: bool = True
@@ -43,6 +49,15 @@ class TrainingConfig:
     log_every_n_steps: int = 10
     val_every_n_epochs: int = 1
     save_every_n_epochs: int = 1
+
+    # Enhanced validation
+    generate_samples_every_n_epochs: int = 5  # Generate samples every N epochs
+    num_validation_samples: int = 3  # Number of samples to generate for inspection
+    
+    # Early stopping (for 48k dataset to prevent overfitting)
+    use_early_stopping: bool = True
+    early_stopping_patience: int = 3  # Stop if no improvement for N epochs
+    early_stopping_min_delta: float = 0.01  # Minimum improvement threshold
 
     # Hardware
     device: Optional[str] = None  # None for auto-detect
@@ -58,6 +73,7 @@ class TrainingContext:
     config: TrainingConfig
     model: FullModel
     optimizer: AdamW
+    scheduler: Optional[torch.optim.lr_scheduler.LRScheduler]
     train_loader: torch.utils.data.DataLoader
     val_loader: torch.utils.data.DataLoader
     device: torch.device
@@ -66,6 +82,7 @@ class TrainingContext:
     checkpoint_dir: Path
     start_epoch: int = 0
     best_val_loss: float = float("inf")
+    early_stopping_counter: int = 0
 
 
 def prepare_environment(config: TrainingConfig) -> TrainingContext:
@@ -108,15 +125,19 @@ def prepare_environment(config: TrainingConfig) -> TrainingContext:
 
     # 4. Create optimizer
     optimizer = create_optimizer(model, config)
+    
+    # 5. Create learning rate scheduler
+    scheduler = create_scheduler(optimizer, config, len(train_loader))
 
-    # 5. Setup logging and checkpoints
+    # 6. Setup logging and checkpoints
     writer, checkpoint_dir = setup_logging_and_checkpoints(config)
 
-    # 6. Assemble TrainingContext
+    # 7. Assemble TrainingContext
     context = TrainingContext(
         config=config,
         model=model,
         optimizer=optimizer,
+        scheduler=scheduler,
         train_loader=train_loader,
         val_loader=val_loader,
         device=device,
@@ -125,7 +146,7 @@ def prepare_environment(config: TrainingConfig) -> TrainingContext:
         checkpoint_dir=checkpoint_dir,
     )
 
-    # 7. Resume from checkpoint if specified
+    # 8. Resume from checkpoint if specified
     if config.resume_from_checkpoint:
         print(
             f"[Training Setup] Resuming from checkpoint: {config.resume_from_checkpoint}"
@@ -228,3 +249,50 @@ def setup_logging_and_checkpoints(config: TrainingConfig) -> Tuple[SummaryWriter
     writer.add_text("training/config", config_text, 0)
 
     return writer, checkpoint_dir
+
+
+def create_scheduler(
+    optimizer: AdamW, config: TrainingConfig, steps_per_epoch: int
+) -> Optional[torch.optim.lr_scheduler.LRScheduler]:
+    """
+    Create learning rate scheduler based on configuration.
+    
+    Args:
+        optimizer: The optimizer to schedule
+        config: Training configuration
+        steps_per_epoch: Number of steps per epoch
+        
+    Returns:
+        LR scheduler or None if disabled
+    """
+    if not config.use_scheduler:
+        print("[Scheduler] Learning rate scheduler disabled")
+        return None
+    
+    total_steps = config.num_epochs * steps_per_epoch
+    
+    if config.scheduler_type == "cosine":
+        scheduler = CosineAnnealingLR(
+            optimizer,
+            T_max=total_steps,
+            eta_min=config.min_lr
+        )
+        print(f"[Scheduler] Cosine annealing: {config.learning_rate} → {config.min_lr}")
+        
+    elif config.scheduler_type == "linear":
+        scheduler = LinearLR(
+            optimizer,
+            start_factor=1.0,
+            end_factor=config.min_lr / config.learning_rate,
+            total_iters=total_steps
+        )
+        print(f"[Scheduler] Linear decay: {config.learning_rate} → {config.min_lr}")
+        
+    elif config.scheduler_type == "constant":
+        scheduler = ConstantLR(optimizer, factor=1.0, total_iters=total_steps)
+        print(f"[Scheduler] Constant learning rate: {config.learning_rate}")
+        
+    else:
+        raise ValueError(f"Unknown scheduler type: {config.scheduler_type}")
+    
+    return scheduler

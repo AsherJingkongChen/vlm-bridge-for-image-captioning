@@ -10,7 +10,6 @@ import re
 from pathlib import Path
 from typing import Dict, Any
 from datasets import Dataset
-from multiprocessing import cpu_count
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
@@ -19,7 +18,7 @@ def transform_and_save_images(dataset: Dataset, final_base_dir: str) -> Dataset:
     Transform the entire GroundCap dataset into (image_path, caption) format.
 
     This function:
-    1. Implements data split logic (train 80%, val 20% overlap, test 20%)
+    1. Implements data split logic (train 80%, val 5% overlap, test 20%)
     2. Saves images directly to final directory structure
     3. Extracts clean captions (removes HTML grounding tags)
     4. Returns a new Dataset with image_path and caption fields
@@ -47,7 +46,9 @@ def transform_and_save_images(dataset: Dataset, final_base_dir: str) -> Dataset:
     # Calculate split indices
     total_size = len(dataset)
     train_end = int(0.8 * total_size)
-    val_start = int(0.6 * total_size)
+    val_start = int(
+        0.75 * total_size
+    )  # Changed from 0.6 to 0.75 for 5% validation split
     test_start = train_end
 
     print(
@@ -56,7 +57,7 @@ def transform_and_save_images(dataset: Dataset, final_base_dir: str) -> Dataset:
 
     # Process samples in parallel with threading
     transformed_data = [None] * len(dataset)
-    max_workers = cpu_count()
+    max_workers = 4
     print(f"  Using {max_workers} threads for parallel JPEG processing...")
 
     def process_sample(i, sample):
@@ -79,6 +80,8 @@ def transform_and_save_images(dataset: Dataset, final_base_dir: str) -> Dataset:
 
             # Save to all relevant splits (direct save, no copying)
             for split_name, split_dir in split_dirs:
+                # Ensure directory exists
+                split_dir.mkdir(parents=True, exist_ok=True)
                 split_image_path = split_dir / image_filename
                 if not split_image_path.exists():
                     # Save directly to each split directory
@@ -105,6 +108,7 @@ def transform_and_save_images(dataset: Dataset, final_base_dir: str) -> Dataset:
 
         except Exception as e:
             print(f"Error processing sample {i}: {e}")
+            # Don't set transformed_data[i] to None, let it fail properly
             raise
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:

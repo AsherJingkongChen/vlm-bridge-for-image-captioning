@@ -120,6 +120,18 @@ Examples:
     train_parser.add_argument(
         "--resume", type=str, default=None, help="Resume training from checkpoint"
     )
+    train_parser.add_argument(
+        "--generate-samples-every-n-epochs",
+        type=int,
+        default=5,
+        help="Generate validation samples every N epochs (default: 5)",
+    )
+    train_parser.add_argument(
+        "--num-validation-samples",
+        type=int,
+        default=3,
+        help="Number of validation samples to generate (default: 3)",
+    )
 
     # Validate command
     val_parser = subparsers.add_parser("validate", help="Validate trained model")
@@ -167,6 +179,8 @@ Examples:
             num_workers=args.num_workers,
             device=args.device,
             resume_from_checkpoint=args.resume,
+            generate_samples_every_n_epochs=args.generate_samples_every_n_epochs,
+            num_validation_samples=args.num_validation_samples,
         )
 
         # Execute training

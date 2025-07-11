@@ -43,10 +43,10 @@ export HF_TOKEN="your_huggingface_token"
 Process the GroundCap dataset (52,350 image-caption pairs):
 
 ```bash
-uv run vlm-data-pipeline explore-dataset
+uv run vlm-data explore-dataset
 # Process the dataset into train/val/test splits
-uv run vlm-data-pipeline transform --output-dir data/groundcap
-uv run vlm-data-pipeline inspect-loader --data-dir data/groundcap
+uv run vlm-data transform --output-dir data/groundcap
+uv run vlm-data inspect-loader --data-dir data/groundcap
 ```
 
 ### Training
@@ -54,14 +54,14 @@ uv run vlm-data-pipeline inspect-loader --data-dir data/groundcap
 Start training with default settings:
 
 ```bash
-# Basic training (default: batch_size=8, epochs=10, lr=5e-5)
+# Basic training (default: batch_size=8, epochs=12, lr=1e-5)
 uv run vlm-training train --data-dir data/groundcap
 
 # Custom configuration
 uv run vlm-training train \
     --batch-size 16 \
-    --epochs 20 \
-    --learning-rate 3e-5 \
+    --epochs 15 \
+    --learning-rate 2e-5 \
     --checkpoint-dir checkpoints/exp_001 \
     --log-dir logs/exp_001
 
@@ -161,16 +161,27 @@ Text → Tokenizer → Text Embeddings ↗
 
 ### Hyperparameters
 
--   Learning rate: 3e-5 to 5e-5 (default: 5e-5)
+-   Learning rate: 1e-5 to 2e-5 (default: 1e-5) - Conservative for 48k dataset
 -   Batch size: 8-16 (depending on GPU memory)
--   Gradient clipping: 1.0
+-   Gradient clipping: 0.3 (strict for stability)
 -   Mixed precision: BF16 (A100) or FP16 (other GPUs)
+-   LR Scheduler: Cosine annealing with min_lr=1e-6
 
-### Monitoring
+### Monitoring (Multi-Stage Expectations)
 
--   Watch validation perplexity (target: < 10)
--   Training loss should decrease steadily
--   Best model saved automatically based on validation loss
+**🔴 Initial Stage (Epoch 1-3):**
+-   Validation Loss: 6.0 → 3.5
+-   Perplexity: 400+ → 30-50
+
+**🟡 Mid Stage (Epoch 4-8):**
+-   Validation Loss: 3.5 → 2.2  
+-   Perplexity: 30-50 → 9-15
+
+**🟢 Final Stage (Epoch 9-12):**
+-   Validation Loss: 2.2 → 1.8
+-   Perplexity: 9-15 → 6-12
+
+Best model saved automatically based on validation loss. Early stopping after 3 epochs without improvement.
 
 ### Common Issues
 
@@ -205,7 +216,7 @@ vlm-bridge-for-image-captioning/
 │   └── control_vastai_local.sh # Local controlling script
 ├── data/groundcap/             # Processed dataset
 │   ├── train/                  # 41,880 samples
-│   ├── val/                    # 10,470 samples
+│   ├── val/                    # 2,618 samples (5% for fast validation)
 │   └── test/                   # 10,470 samples
 ├── checkpoints/                # Saved model weights
 └── logs/                       # TensorBoard logs
@@ -213,11 +224,17 @@ vlm-bridge-for-image-captioning/
 
 ## 🎯 Expected Results
 
-After 10-20 epochs of training:
+After 12 epochs of training on 48k dataset:
 
--   Validation perplexity: 8-12
+**Success Thresholds:**
+-   **Basic Performance**: Perplexity < 15 (considering dataset size)
+-   **Good Performance**: Perplexity < 10
+-   **Excellent Performance**: Perplexity < 8
+
+**Outcomes:**
 -   Meaningful captions for unseen images
--   Good generalization to similar domains
+-   Good generalization within domain
+-   Training time: ~30 min/epoch on A100
 
 ## 🤝 Acknowledgments
 
