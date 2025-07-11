@@ -6,7 +6,7 @@ This module implements the training and validation epochs.
 
 import torch
 import torch.nn as nn
-from torch.cuda.amp import autocast
+from torch import autocast
 from tqdm import tqdm
 from typing import Tuple
 
