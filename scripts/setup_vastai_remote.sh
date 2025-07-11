@@ -70,7 +70,7 @@ echo "Setup Complete! Ready to train."
 echo "=================================================="
 echo ""
 
-LOG_DIR=${LOG_DIR:-"logs"}
+LOG_DIR=${LOG_DIR:-"logs/experiment"}
 
 # Start TensorBoard in background
 echo "🔧 Starting TensorBoard on port 6006..."

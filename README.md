@@ -87,20 +87,22 @@ cp config/training-default.yaml config/training-default.yaml
 # - use_early_stopping: true (patience: 3 epochs)
 # - use_scheduler: true (cosine annealing: 1e-5 → 1e-6)
 # - amp_dtype: bfloat16 (best for A100)
+```
 
 ### Learning Rate Schedule
 
 The default configuration uses **Cosine Annealing** with these characteristics:
-- **Initial LR**: 1e-5 (0.00001)
-- **Minimum LR**: 1e-6 (0.000001) 
-- **Total steps**: 62,820 (12 epochs × 5,235 steps/epoch)
-- **Pattern**: Smooth cosine curve from max to min over entire training
+
+-   **Initial LR**: 1e-5 (0.00001)
+-   **Minimum LR**: 1e-6 (0.000001)
+-   **Total steps**: 62,820 (12 epochs × 5,235 steps/epoch)
+-   **Pattern**: Smooth cosine curve from max to min over entire training
 
 **Example progression:**
-- **Epoch 1**: LR = 1.00e-5 (peak learning)
-- **Epoch 6**: LR ≈ 5.5e-6 (mid-training)  
-- **Epoch 12**: LR = 1.00e-6 (fine-tuning)
-```
+
+-   **Epoch 1**: LR = 1.00e-5 (peak learning)
+-   **Epoch 6**: LR ≈ 5.5e-6 (mid-training)
+-   **Epoch 12**: LR = 1.00e-6 (fine-tuning)
 
 ## 🖥️ Training on vast.ai
 
@@ -130,14 +132,43 @@ bash control_vastai_local.sh monitor root@ssh2.vast.ai -p 12345 -i ~/.ssh/id_ed2
 
 ### Download Checkpoints to Local Machine
 
-```bash
-# Download specific checkpoint files
-bash control_vastai_local.sh download-best root@ssh2.vast.ai -p 12345 -i ~/.ssh/id_ed25519
-bash control_vastai_local.sh download-latest root@ssh2.vast.ai -p 12345 -i ~/.ssh/id_ed25519
-bash control_vastai_local.sh download-weights root@ssh2.vast.ai -p 12345 -i ~/.ssh/id_ed25519
+#### New Flexible Download Syntax
 
-# Download all checkpoints
-bash control_vastai_local.sh download-all root@ssh2.vast.ai -p 12345 -i ~/.ssh/id_ed25519
+```bash
+# Download specific files with custom paths
+bash control_vastai_local.sh download root@ssh2.vast.ai \
+    -f checkpoints/experiment/best_model.pth \
+    -p 12345 -i ~/.ssh/id_ed25519
+
+# Download to custom local directory
+bash control_vastai_local.sh download root@ssh2.vast.ai \
+    -f checkpoints/experiment/latest_checkpoint.pth -d checkpoints/backup \
+    -p 12345 -i ~/.ssh/id_ed25519
+
+# Download entire checkpoint directory
+bash control_vastai_local.sh download root@ssh2.vast.ai \
+    -f checkpoints/experiment/ -d checkpoints/backup \
+    -p 12345 -i ~/.ssh/id_ed25519
+```
+
+#### Common Download Patterns
+
+```bash
+# Download best model (most common)
+bash control_vastai_local.sh download root@ssh2.vast.ai \
+    -f checkpoints/experiment/best_model.pth -p 12345 -i ~/.ssh/id_ed25519
+
+# Download latest checkpoint for resuming
+bash control_vastai_local.sh download root@ssh2.vast.ai \
+    -f checkpoints/experiment/latest_checkpoint.pth -p 12345 -i ~/.ssh/id_ed25519
+
+# Download weights-only file for inference
+bash control_vastai_local.sh download root@ssh2.vast.ai \
+    -f checkpoints/experiment/best_model_weights_only.pth -p 12345 -i ~/.ssh/id_ed25519
+
+# Download all experiment files
+bash control_vastai_local.sh download root@ssh2.vast.ai \
+    -f checkpoints/experiment/ -p 12345 -i ~/.ssh/id_ed25519
 ```
 
 Then open http://localhost:6006 for TensorBoard.
@@ -148,26 +179,28 @@ Then open http://localhost:6006 for TensorBoard.
 
 Training automatically creates 3 types of checkpoint files:
 
-| File | Purpose | When Saved | Contents |
-|------|---------|------------|----------|
-| `latest_checkpoint.pth` | Resume training | Every validation epoch | Complete training state |
-| `best_model.pth` | Best model | When validation loss improves | Complete best model state |
-| `best_model_weights_only.pth` | Inference/deployment | With best model | Model weights only (smaller) |
+| File                          | Purpose              | When Saved                    | Contents                     |
+| ----------------------------- | -------------------- | ----------------------------- | ---------------------------- |
+| `latest_checkpoint.pth`       | Resume training      | Every validation epoch        | Complete training state      |
+| `best_model.pth`              | Best model           | When validation loss improves | Complete best model state    |
+| `best_model_weights_only.pth` | Inference/deployment | With best model               | Model weights only (smaller) |
 
 ### Checkpoint Contents
 
 **Complete Checkpoints** (`latest_checkpoint.pth`, `best_model.pth`):
-- BridgeModule state dict (66.1M trainable parameters)
-- Optimizer state (AdamW)
-- Learning rate scheduler state
-- Training epoch number
-- Best validation loss
-- Early stopping counter
+
+-   BridgeModule state dict (66.1M trainable parameters)
+-   Optimizer state (AdamW)
+-   Learning rate scheduler state
+-   Training epoch number
+-   Best validation loss
+-   Early stopping counter
 
 **Weights-Only** (`best_model_weights_only.pth`):
-- BridgeModule state dict only
-- Training configuration
-- Smaller file size (~130MB vs ~260MB)
+
+-   BridgeModule state dict only
+-   Training configuration
+-   Smaller file size (~130MB vs ~260MB)
 
 ### Resume Training
 
@@ -181,10 +214,10 @@ uv run vlm-training --resume checkpoints/best_model.pth
 
 ### Checkpoint Schedule
 
-- **Every validation epoch**: `latest_checkpoint.pth` updated
-- **When validation loss improves**: `best_model.pth` + `best_model_weights_only.pth` saved  
-- **Default validation frequency**: Every epoch (`val_every_n_epochs: 1`)
-- **Periodic saves**: Every epoch even without validation (`save_every_n_epochs: 1`)
+-   **Every validation epoch**: `latest_checkpoint.pth` updated
+-   **When validation loss improves**: `best_model.pth` + `best_model_weights_only.pth` saved
+-   **Default validation frequency**: Every epoch (`val_every_n_epochs: 1`)
+-   **Periodic saves**: Every epoch even without validation (`save_every_n_epochs: 1`)
 
 ## 📊 Model Architecture
 
@@ -240,7 +273,7 @@ Text → Tokenizer → Text Embeddings ↗
 ### Hyperparameters
 
 -   Learning rate: 1e-5 (conservative for 48k dataset)
--   Batch size: 8-16 (depending on GPU memory)  
+-   Batch size: 8-16 (depending on GPU memory)
 -   Gradient clipping: 0.3 (strict for stability)
 -   Mixed precision: BF16 (A100) or FP16 (other GPUs)
 -   LR Scheduler: Cosine annealing (1e-5 → 1e-6 over 62,820 steps)

@@ -45,8 +45,8 @@ class TrainingConfig:
     amp_dtype: str = "bfloat16"  # "float16" or "bfloat16"
 
     # Logging and checkpoints
-    log_dir: str = "logs"
-    checkpoint_dir: str = "checkpoints"
+    log_dir: str = "logs/experiment"
+    checkpoint_dir: str = "checkpoints/experiment"
     log_every_n_steps: int = 10
     val_every_n_epochs: int = 1
     save_every_n_epochs: int = 1

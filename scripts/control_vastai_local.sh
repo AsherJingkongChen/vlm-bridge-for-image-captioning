@@ -13,26 +13,28 @@ COMMAND=""
 VAST_HOST=""
 SSH_KEY=""
 SSH_PORT=""
+REMOTE_FILE=""
+LOCAL_DIR=""
 
 # First argument must be command
 if [ $# -eq 0 ]; then
-    echo "Usage: $0 <command> <user@host> [-i ssh_key_path] [-p port]"
+    echo "Usage: $0 <command> <user@host> [options]"
     echo ""
     echo "Commands:"
     echo "  monitor        - Create TensorBoard tunnel"
-    echo "  download-best  - Download best model checkpoint"
-    echo "  download-latest - Download latest checkpoint"
-    echo "  download-weights - Download weights-only file"
-    echo "  download-all   - Download all checkpoints"
+    echo "  download       - Download file/directory from remote"
     echo ""
     echo "Options:"
     echo "  -i, --identity  SSH private key path (required)"
     echo "  -p, --port      SSH port number (required)"
+    echo "  -f, --file      Remote file/directory path (for download)"
+    echo "  -d, --dir       Local target directory (default: checkpoints/experiment)"
     echo ""
     echo "Examples:"
     echo "  $0 monitor root@ssh1.vast.ai -p 12345 -i ~/.ssh/id_ed25519"
-    echo "  $0 download-best root@ssh2.vast.ai -p 23456 -i ~/.ssh/id_ed25519"
-    echo "  $0 download-all root@ssh3.vast.ai -p 34567 -i ~/.ssh/id_ed25519"
+    echo "  $0 download root@host -f checkpoints/experiment/best_model.pth -p 12345 -i ~/.ssh/key"
+    echo "  $0 download root@host -f checkpoints/experiment/ -d models/backup -p 12345 -i ~/.ssh/key"
+    echo "  $0 download root@host -f checkpoints/experiment/best_model.pth -p 23456 -i ~/.ssh/key"
     echo ""
     exit 1
 fi
@@ -43,7 +45,7 @@ shift
 # Second argument must be host
 if [ $# -eq 0 ]; then
     echo "❌ Error: Missing host argument"
-    echo "Usage: $0 $COMMAND <user@host> [-i ssh_key_path] [-p port]"
+    echo "Usage: $0 $COMMAND <user@host> [options]"
     exit 1
 fi
 
@@ -67,6 +69,22 @@ while [[ $# -gt 0 ]]; do
                 exit 1
             fi
             SSH_PORT="$2"
+            shift 2
+            ;;
+        -f|--file)
+            if [ -z "$2" ]; then
+                echo "❌ Error: Remote file path required after -f"
+                exit 1
+            fi
+            REMOTE_FILE="$2"
+            shift 2
+            ;;
+        -d|--dir)
+            if [ -z "$2" ]; then
+                echo "❌ Error: Local directory path required after -d"
+                exit 1
+            fi
+            LOCAL_DIR="$2"
             shift 2
             ;;
         *)
@@ -107,6 +125,57 @@ if ! ssh $SSH_OPTS $VAST_HOST "echo 'Connected successfully'"; then
     exit 1
 fi
 
+# Generic download function
+download_file() {
+    local remote_path="$1"
+    local local_dir="$2"
+    
+    # Set default local directory if not specified
+    if [ -z "$local_dir" ]; then
+        local_dir="checkpoints/experiment"
+    fi
+    
+    # Ensure local directory exists
+    mkdir -p "$local_dir"
+    
+    # Check if remote path ends with / (directory download)
+    if [[ "$remote_path" == */ ]]; then
+        echo "📁 Downloading directory: $remote_path"
+        echo "Listing available files..."
+        ssh $SSH_OPTS $VAST_HOST "cd vlm-bridge-for-image-captioning && find $remote_path -name '*.pth' -type f 2>/dev/null || echo 'No .pth files found'"
+        
+        echo ""
+        echo "Downloading entire directory..."
+        rsync -avz --progress -e "ssh $SSH_OPTS" \
+            "$VAST_HOST:vlm-bridge-for-image-captioning/$remote_path" \
+            "$local_dir/" || {
+            echo "❌ Failed to download directory: $remote_path"
+            echo "Make sure the directory exists on remote server"
+            exit 1
+        }
+        
+        echo "✅ Download complete: Directory saved to ./$local_dir/"
+    else
+        # Single file download
+        local filename=$(basename "$remote_path")
+        echo "📄 Downloading file: $remote_path"
+        
+        echo "Checking if file exists..."
+        ssh $SSH_OPTS $VAST_HOST "cd vlm-bridge-for-image-captioning && find $remote_path -type f 2>/dev/null || echo 'File not found'"
+        
+        echo "Downloading $filename..."
+        rsync -avz --progress -e "ssh $SSH_OPTS" \
+            "$VAST_HOST:vlm-bridge-for-image-captioning/$remote_path" \
+            "$local_dir/" || {
+            echo "❌ Failed to download $filename"
+            echo "Make sure the file exists on remote server"
+            exit 1
+        }
+        
+        echo "✅ Download complete: ./$local_dir/$filename"
+    fi
+}
+
 # Execute specific command
 case $COMMAND in
     monitor)
@@ -132,87 +201,20 @@ case $COMMAND in
         done
         ;;
         
-    download-best)
-        echo "📥 Downloading best model checkpoint..."
-        mkdir -p checkpoints
-        
-        # List available checkpoints first
-        echo "Checking available checkpoints..."
-        ssh $SSH_OPTS $VAST_HOST "cd vlm-bridge-for-image-captioning && find checkpoints -name 'best_model.pth' -type f"
-        
-        echo "Downloading best_model.pth..."
-        rsync -avz --progress -e "ssh $SSH_OPTS" \
-            $VAST_HOST:vlm-bridge-for-image-captioning/checkpoints/best_model.pth \
-            checkpoints/ || {
-            echo "❌ Failed to download best_model.pth"
-            echo "Make sure the file exists on remote server"
+    download)
+        # Validate required arguments for download command
+        if [ -z "$REMOTE_FILE" ]; then
+            echo "❌ Error: Remote file path required for download command (-f option)"
+            echo "Usage: $0 download <user@host> -f <remote_path> [-d local_dir] [-p port] [-i key]"
             exit 1
-        }
+        fi
         
-        echo "✅ Download complete: ./checkpoints/best_model.pth"
-        ;;
-        
-    download-latest)
-        echo "📥 Downloading latest checkpoint..."
-        mkdir -p checkpoints
-        
-        echo "Checking available checkpoints..."
-        ssh $SSH_OPTS $VAST_HOST "cd vlm-bridge-for-image-captioning && find checkpoints -name 'latest_checkpoint.pth' -type f"
-        
-        echo "Downloading latest_checkpoint.pth..."
-        rsync -avz --progress -e "ssh $SSH_OPTS" \
-            $VAST_HOST:vlm-bridge-for-image-captioning/checkpoints/latest_checkpoint.pth \
-            checkpoints/ || {
-            echo "❌ Failed to download latest_checkpoint.pth"
-            echo "Make sure the file exists on remote server"
-            exit 1
-        }
-        
-        echo "✅ Download complete: ./checkpoints/latest_checkpoint.pth"
-        ;;
-        
-    download-weights)
-        echo "📥 Downloading weights-only file..."
-        mkdir -p checkpoints
-        
-        echo "Checking available checkpoints..."
-        ssh $SSH_OPTS $VAST_HOST "cd vlm-bridge-for-image-captioning && find checkpoints -name 'best_model_weights_only.pth' -type f"
-        
-        echo "Downloading best_model_weights_only.pth..."
-        rsync -avz --progress -e "ssh $SSH_OPTS" \
-            $VAST_HOST:vlm-bridge-for-image-captioning/checkpoints/best_model_weights_only.pth \
-            checkpoints/ || {
-            echo "❌ Failed to download best_model_weights_only.pth"
-            echo "Make sure the file exists on remote server"
-            exit 1
-        }
-        
-        echo "✅ Download complete: ./checkpoints/best_model_weights_only.pth"
-        ;;
-        
-    download-all)
-        echo "📥 Downloading all checkpoints..."
-        mkdir -p checkpoints
-        
-        echo "Listing all available checkpoints..."
-        ssh $SSH_OPTS $VAST_HOST "cd vlm-bridge-for-image-captioning && find checkpoints -name '*.pth' -type f"
-        
-        echo ""
-        echo "Downloading entire checkpoints directory..."
-        rsync -avz --progress -e "ssh $SSH_OPTS" \
-            $VAST_HOST:vlm-bridge-for-image-captioning/checkpoints/ \
-            checkpoints/ || {
-            echo "❌ Failed to download checkpoints"
-            echo "Make sure the checkpoints directory exists on remote server"
-            exit 1
-        }
-        
-        echo "✅ Download complete: All checkpoints saved to ./checkpoints/"
+        download_file "$REMOTE_FILE" "$LOCAL_DIR"
         ;;
         
     *)
         echo "❌ Invalid command: $COMMAND"
-        echo "Valid commands are: monitor, download-best, download-latest, download-weights, download-all"
+        echo "Valid commands are: monitor, download"
         exit 1
         ;;
 esac
