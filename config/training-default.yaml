@@ -1,6 +1,6 @@
 amp_dtype: bfloat16
 batch_size: 8
-checkpoint_dir: checkpoints/experiment
+checkpoint_dir: checkpoints
 data_dir: data/groundcap
 device: null
 early_stopping_min_delta: 0.01
@@ -8,7 +8,7 @@ early_stopping_patience: 3
 generate_samples_every_n_epochs: 5
 gradient_clip_val: 0.3
 learning_rate: 1.0e-05
-log_dir: logs/experiment
+log_dir: logs
 log_every_n_steps: 10
 min_lr: 1.0e-06
 num_epochs: 12

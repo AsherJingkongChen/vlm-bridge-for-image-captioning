@@ -85,8 +85,21 @@ cp config/training-default.yaml config/training-default.yaml
 # - batch_size: 8 (fits most GPUs)
 # - gradient_clip_val: 0.3 (strict for stability)
 # - use_early_stopping: true (patience: 3 epochs)
-# - use_scheduler: true (cosine annealing)
+# - use_scheduler: true (cosine annealing: 1e-5 → 1e-6)
 # - amp_dtype: bfloat16 (best for A100)
+
+### Learning Rate Schedule
+
+The default configuration uses **Cosine Annealing** with these characteristics:
+- **Initial LR**: 1e-5 (0.00001)
+- **Minimum LR**: 1e-6 (0.000001) 
+- **Total steps**: 62,820 (12 epochs × 5,235 steps/epoch)
+- **Pattern**: Smooth cosine curve from max to min over entire training
+
+**Example progression:**
+- **Epoch 1**: LR = 1.00e-5 (peak learning)
+- **Epoch 6**: LR ≈ 5.5e-6 (mid-training)  
+- **Epoch 12**: LR = 1.00e-6 (fine-tuning)
 ```
 
 ## 🖥️ Training on vast.ai
@@ -111,18 +124,67 @@ This script will:
 # On your local machine
 wget https://raw.githubusercontent.com/AsherJingkongChen/vlm-bridge-for-image-captioning/main/scripts/control_vastai_local.sh
 
-# Monitor training progress with SSH key and port
-bash control_vastai_local.sh root@ssh2.vast.ai monitor -p 12345 -i ~/.ssh/id_ed25519
+# Monitor training progress with TensorBoard tunnel
+bash control_vastai_local.sh monitor root@ssh2.vast.ai -p 12345 -i ~/.ssh/id_ed25519
 ```
 
 ### Download Checkpoints to Local Machine
 
 ```bash
-# Download checkpoints with SSH key and port
-bash control_vastai_local.sh root@ssh2.vast.ai download -p 12345 -i ~/.ssh/id_ed25519
+# Download specific checkpoint files
+bash control_vastai_local.sh download-best root@ssh2.vast.ai -p 12345 -i ~/.ssh/id_ed25519
+bash control_vastai_local.sh download-latest root@ssh2.vast.ai -p 12345 -i ~/.ssh/id_ed25519
+bash control_vastai_local.sh download-weights root@ssh2.vast.ai -p 12345 -i ~/.ssh/id_ed25519
+
+# Download all checkpoints
+bash control_vastai_local.sh download-all root@ssh2.vast.ai -p 12345 -i ~/.ssh/id_ed25519
 ```
 
 Then open http://localhost:6006 for TensorBoard.
+
+## 💾 Checkpoint Management
+
+### Checkpoint Files
+
+Training automatically creates 3 types of checkpoint files:
+
+| File | Purpose | When Saved | Contents |
+|------|---------|------------|----------|
+| `latest_checkpoint.pth` | Resume training | Every validation epoch | Complete training state |
+| `best_model.pth` | Best model | When validation loss improves | Complete best model state |
+| `best_model_weights_only.pth` | Inference/deployment | With best model | Model weights only (smaller) |
+
+### Checkpoint Contents
+
+**Complete Checkpoints** (`latest_checkpoint.pth`, `best_model.pth`):
+- BridgeModule state dict (66.1M trainable parameters)
+- Optimizer state (AdamW)
+- Learning rate scheduler state
+- Training epoch number
+- Best validation loss
+- Early stopping counter
+
+**Weights-Only** (`best_model_weights_only.pth`):
+- BridgeModule state dict only
+- Training configuration
+- Smaller file size (~130MB vs ~260MB)
+
+### Resume Training
+
+```bash
+# Resume from latest checkpoint
+uv run vlm-training --resume checkpoints/latest_checkpoint.pth
+
+# Resume from specific checkpoint
+uv run vlm-training --resume checkpoints/best_model.pth
+```
+
+### Checkpoint Schedule
+
+- **Every validation epoch**: `latest_checkpoint.pth` updated
+- **When validation loss improves**: `best_model.pth` + `best_model_weights_only.pth` saved  
+- **Default validation frequency**: Every epoch (`val_every_n_epochs: 1`)
+- **Periodic saves**: Every epoch even without validation (`save_every_n_epochs: 1`)
 
 ## 📊 Model Architecture
 
@@ -177,11 +239,11 @@ Text → Tokenizer → Text Embeddings ↗
 
 ### Hyperparameters
 
--   Learning rate: 1e-5 to 2e-5 (default: 1e-5) - Conservative for 48k dataset
--   Batch size: 8-16 (depending on GPU memory)
+-   Learning rate: 1e-5 (conservative for 48k dataset)
+-   Batch size: 8-16 (depending on GPU memory)  
 -   Gradient clipping: 0.3 (strict for stability)
 -   Mixed precision: BF16 (A100) or FP16 (other GPUs)
--   LR Scheduler: Cosine annealing with min_lr=1e-6
+-   LR Scheduler: Cosine annealing (1e-5 → 1e-6 over 62,820 steps)
 
 ### Monitoring (Multi-Stage Expectations)
 

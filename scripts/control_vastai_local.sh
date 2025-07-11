@@ -8,77 +8,106 @@ echo "=================================================="
 echo "VLM Bridge Training Controller (Local)"
 echo "=================================================="
 
-# Parse arguments
-VAST_HOST=""
+# Parse arguments - command first approach
 COMMAND=""
+VAST_HOST=""
 SSH_KEY=""
 SSH_PORT=""
 
+# First argument must be command
+if [ $# -eq 0 ]; then
+    echo "Usage: $0 <command> <user@host> [-i ssh_key_path] [-p port]"
+    echo ""
+    echo "Commands:"
+    echo "  monitor        - Create TensorBoard tunnel"
+    echo "  download-best  - Download best model checkpoint"
+    echo "  download-latest - Download latest checkpoint"
+    echo "  download-weights - Download weights-only file"
+    echo "  download-all   - Download all checkpoints"
+    echo ""
+    echo "Options:"
+    echo "  -i, --identity  SSH private key path (required)"
+    echo "  -p, --port      SSH port number (required)"
+    echo ""
+    echo "Examples:"
+    echo "  $0 monitor root@ssh1.vast.ai -p 12345 -i ~/.ssh/id_ed25519"
+    echo "  $0 download-best root@ssh2.vast.ai -p 23456 -i ~/.ssh/id_ed25519"
+    echo "  $0 download-all root@ssh3.vast.ai -p 34567 -i ~/.ssh/id_ed25519"
+    echo ""
+    exit 1
+fi
+
+COMMAND="$1"
+shift
+
+# Second argument must be host
+if [ $# -eq 0 ]; then
+    echo "❌ Error: Missing host argument"
+    echo "Usage: $0 $COMMAND <user@host> [-i ssh_key_path] [-p port]"
+    exit 1
+fi
+
+VAST_HOST="$1"
+shift
+
+# Parse remaining options
 while [[ $# -gt 0 ]]; do
     case $1 in
         -i|--identity)
+            if [ -z "$2" ]; then
+                echo "❌ Error: SSH key path required after -i"
+                exit 1
+            fi
             SSH_KEY="$2"
             shift 2
             ;;
         -p|--port)
+            if [ -z "$2" ]; then
+                echo "❌ Error: Port number required after -p"
+                exit 1
+            fi
             SSH_PORT="$2"
             shift 2
             ;;
         *)
-            if [ -z "$VAST_HOST" ]; then
-                VAST_HOST="$1"
-            elif [ -z "$COMMAND" ]; then
-                COMMAND="$1"
-            fi
-            shift
+            echo "❌ Error: Unknown option: $1"
+            exit 1
             ;;
     esac
 done
 
-# Check if host and command are provided
-if [ -z "$VAST_HOST" ] || [ -z "$COMMAND" ]; then
-    echo "Usage: $0 <user@host> <command> [-i ssh_key_path] [-p port]"
-    echo ""
-    echo "Commands:"
-    echo "  monitor   - Create TensorBoard tunnel"
-    echo "  download  - Download checkpoints"
-    echo ""
-    echo "Options:"
-    echo "  -i, --identity  SSH private key path"
-    echo "  -p, --port      SSH port number"
-    echo ""
-    echo "Examples:"
-    echo "  $0 root@ssh1.vast.ai download -p 12345"
-    echo "  $0 root@ssh2.vast.ai download -p 23456 -i ~/.ssh/id_ed25519"
-    echo "  $0 root@ssh3.vast.ai monitor  -p 34567 -i ~/.ssh/id_ed25519"
-    echo ""
+# Validate required arguments
+if [ -z "$SSH_KEY" ]; then
+    echo "❌ Error: SSH key required (-i option)"
+    exit 1
+fi
+
+if [ -z "$SSH_PORT" ]; then
+    echo "❌ Error: SSH port required (-p option)"
+    exit 1
+fi
+
+# Validate SSH key file exists
+if [ ! -f "$SSH_KEY" ]; then
+    echo "❌ SSH key file not found: $SSH_KEY"
     exit 1
 fi
 
 # Build SSH command options
-SSH_OPTS="-q -o ConnectTimeout=5"
-if [ -n "$SSH_KEY" ]; then
-    if [ ! -f "$SSH_KEY" ]; then
-        echo "❌ SSH key file not found: $SSH_KEY"
-        exit 1
-    fi
-    SSH_OPTS="$SSH_OPTS -i $SSH_KEY"
-fi
-if [ -n "$SSH_PORT" ]; then
-    SSH_OPTS="$SSH_OPTS -p $SSH_PORT"
-fi
+SSH_OPTS="-q -o ConnectTimeout=5 -i $SSH_KEY -p $SSH_PORT"
 
 # Test SSH connection
 echo "🔗 Testing connection to $VAST_HOST..."
-if [ -n "$SSH_KEY" ]; then
-    echo "Using SSH key: $SSH_KEY"
-fi
-if ! ssh $SSH_OPTS $VAST_HOST "echo 'Connected'"; then
+echo "Using SSH key: $SSH_KEY"
+echo "Using port: $SSH_PORT"
+
+if ! ssh $SSH_OPTS $VAST_HOST "echo 'Connected successfully'"; then
     echo "❌ Failed to connect to $VAST_HOST"
-    echo "Please check your SSH connection and key file"
+    echo "Please check your SSH connection, key file, and port number"
     exit 1
 fi
 
+# Execute specific command
 case $COMMAND in
     monitor)
         echo "📊 Creating TensorBoard tunnel..."
@@ -103,72 +132,87 @@ case $COMMAND in
         done
         ;;
         
-    download)
-        echo "📥 Downloading checkpoints..."
-        echo ""
+    download-best)
+        echo "📥 Downloading best model checkpoint..."
+        mkdir -p checkpoints
         
-        # List available checkpoints
-        echo "Available checkpoints:"
-        ssh $SSH_OPTS $VAST_HOST "cd vlm-bridge-for-image-captioning && find checkpoints -name '*.pth' -type f" || {
-            echo "No checkpoints found or unable to list"
+        # List available checkpoints first
+        echo "Checking available checkpoints..."
+        ssh $SSH_OPTS $VAST_HOST "cd vlm-bridge-for-image-captioning && find checkpoints -name 'best_model.pth' -type f"
+        
+        echo "Downloading best_model.pth..."
+        rsync -avz --progress -e "ssh $SSH_OPTS" \
+            $VAST_HOST:vlm-bridge-for-image-captioning/checkpoints/best_model.pth \
+            checkpoints/ || {
+            echo "❌ Failed to download best_model.pth"
+            echo "Make sure the file exists on remote server"
             exit 1
         }
         
-        echo ""
-        echo "Which checkpoint to download?"
-        echo "1) best_model.pth (best validation loss)"
-        echo "2) latest_checkpoint.pth (most recent)"
-        echo "3) best_model_weights_only.pth (weights only, smaller)"
-        echo "4) All checkpoints"
-        echo ""
-        read -p "Enter choice (1-4): " choice
+        echo "✅ Download complete: ./checkpoints/best_model.pth"
+        ;;
         
-        # Create local checkpoint directory
+    download-latest)
+        echo "📥 Downloading latest checkpoint..."
         mkdir -p checkpoints
         
-        # Build SCP/rsync options from SSH options
-        SCP_OPTS=""
-        RSYNC_SSH_CMD="ssh"
-        if [ -n "$SSH_KEY" ]; then
-            SCP_OPTS="$SCP_OPTS -i $SSH_KEY"
-            RSYNC_SSH_CMD="$RSYNC_SSH_CMD -i $SSH_KEY"
-        fi
-        if [ -n "$SSH_PORT" ]; then
-            SCP_OPTS="$SCP_OPTS -P $SSH_PORT"
-            RSYNC_SSH_CMD="$RSYNC_SSH_CMD -p $SSH_PORT"
-        fi
-
-        case $choice in
-            1)
-                echo "Downloading best_model.pth..."
-                scp $SCP_OPTS $VAST_HOST:vlm-bridge-for-image-captioning/checkpoints/*/best_model.pth checkpoints/ || echo "File not found"
-                ;;
-            2)
-                echo "Downloading latest_checkpoint.pth..."
-                scp $SCP_OPTS $VAST_HOST:vlm-bridge-for-image-captioning/checkpoints/*/latest_checkpoint.pth checkpoints/ || echo "File not found"
-                ;;
-            3)
-                echo "Downloading best_model_weights_only.pth..."
-                scp $SCP_OPTS $VAST_HOST:vlm-bridge-for-image-captioning/checkpoints/*/best_model_weights_only.pth checkpoints/ || echo "File not found"
-                ;;
-            4)
-                echo "Downloading all checkpoints..."
-                rsync -avz --progress -e "$RSYNC_SSH_CMD" $VAST_HOST:vlm-bridge-for-image-captioning/checkpoints/ checkpoints/
-                ;;
-            *)
-                echo "Invalid choice"
-                exit 1
-                ;;
-        esac
+        echo "Checking available checkpoints..."
+        ssh $SSH_OPTS $VAST_HOST "cd vlm-bridge-for-image-captioning && find checkpoints -name 'latest_checkpoint.pth' -type f"
+        
+        echo "Downloading latest_checkpoint.pth..."
+        rsync -avz --progress -e "ssh $SSH_OPTS" \
+            $VAST_HOST:vlm-bridge-for-image-captioning/checkpoints/latest_checkpoint.pth \
+            checkpoints/ || {
+            echo "❌ Failed to download latest_checkpoint.pth"
+            echo "Make sure the file exists on remote server"
+            exit 1
+        }
+        
+        echo "✅ Download complete: ./checkpoints/latest_checkpoint.pth"
+        ;;
+        
+    download-weights)
+        echo "📥 Downloading weights-only file..."
+        mkdir -p checkpoints
+        
+        echo "Checking available checkpoints..."
+        ssh $SSH_OPTS $VAST_HOST "cd vlm-bridge-for-image-captioning && find checkpoints -name 'best_model_weights_only.pth' -type f"
+        
+        echo "Downloading best_model_weights_only.pth..."
+        rsync -avz --progress -e "ssh $SSH_OPTS" \
+            $VAST_HOST:vlm-bridge-for-image-captioning/checkpoints/best_model_weights_only.pth \
+            checkpoints/ || {
+            echo "❌ Failed to download best_model_weights_only.pth"
+            echo "Make sure the file exists on remote server"
+            exit 1
+        }
+        
+        echo "✅ Download complete: ./checkpoints/best_model_weights_only.pth"
+        ;;
+        
+    download-all)
+        echo "📥 Downloading all checkpoints..."
+        mkdir -p checkpoints
+        
+        echo "Listing all available checkpoints..."
+        ssh $SSH_OPTS $VAST_HOST "cd vlm-bridge-for-image-captioning && find checkpoints -name '*.pth' -type f"
         
         echo ""
-        echo "✅ Download complete!"
-        echo "Checkpoints saved to: ./checkpoints/"
+        echo "Downloading entire checkpoints directory..."
+        rsync -avz --progress -e "ssh $SSH_OPTS" \
+            $VAST_HOST:vlm-bridge-for-image-captioning/checkpoints/ \
+            checkpoints/ || {
+            echo "❌ Failed to download checkpoints"
+            echo "Make sure the checkpoints directory exists on remote server"
+            exit 1
+        }
+        
+        echo "✅ Download complete: All checkpoints saved to ./checkpoints/"
         ;;
         
     *)
         echo "❌ Invalid command: $COMMAND"
-        echo "Valid commands are: monitor, download"
+        echo "Valid commands are: monitor, download-best, download-latest, download-weights, download-all"
         exit 1
         ;;
 esac
