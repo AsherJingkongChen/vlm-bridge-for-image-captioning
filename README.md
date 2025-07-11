@@ -95,8 +95,7 @@ cp config/training-default.yaml config/training-default.yaml
 
 ```bash
 # On vast.ai instance (after SSH)
-wget https://raw.githubusercontent.com/AsherJingkongChen/vlm-bridge-for-image-captioning/main/scripts/setup_vastai_remote.sh
-bash setup_vastai_remote.sh
+curl -LSsf https://raw.githubusercontent.com/AsherJingkongChen/vlm-bridge-for-image-captioning/main/scripts/setup_vastai_remote.sh | bash
 ```
 
 This script will:

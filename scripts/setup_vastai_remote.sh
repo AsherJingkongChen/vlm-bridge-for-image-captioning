@@ -77,7 +77,7 @@ TENSORBOARD_PID=$!
 echo "TensorBoard PID: $TENSORBOARD_PID"
 
 # Start training
-uv run vlm-training train
+uv run vlm-training
 
 # Kill TensorBoard
 kill $TENSORBOARD_PID 2>/dev/null || true
