@@ -240,6 +240,9 @@ class FullModel(nn.Module):
                 # Get current text embeddings
                 text_embeddings = self.language_model.get_embeddings(input_ids)
 
+                # Create attention mask for current sequence
+                attention_mask = torch.ones_like(input_ids, dtype=torch.long)
+
                 # Enhance with vision through BridgeModule
                 enhanced_embeddings = self.bridge_module(
                     vision_features, text_embeddings
@@ -247,7 +250,7 @@ class FullModel(nn.Module):
 
                 # Generate logits through language model
                 logits = self.language_model.forward_from_embeddings(
-                    enhanced_embeddings
+                    enhanced_embeddings, attention_mask=attention_mask
                 )
 
                 # Get next token logits (last position)
