@@ -51,7 +51,7 @@ if [ -z "$HF_TOKEN" ]; then
     echo ""
     echo "🔑 HuggingFace token required for Gemma-2-2B access"
     echo "Please enter your HuggingFace token (HF_TOKEN):"
-    read -s HF_TOKEN
+    read -s HF_TOKEN < /dev/tty
     export HF_TOKEN
 fi
 
