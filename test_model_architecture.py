@@ -1,9 +1,9 @@
 """
-Inference tests for model architecture components.
+Lightweight tests for model architecture components.
 
-Inference only, no training/backpropagation.
-This script tests the architecture with real models and minimal data,
-focusing on shape validation and basic functionality.
+This script tests the architecture with MINIMAL REAL DATA to avoid heavy model loading.
+Use test_model_architecture_lite.py for pure architecture tests.
+This script does minimal real model testing for integration validation.
 """
 
 import os
@@ -20,7 +20,7 @@ os.environ["TRANSFORMERS_VERBOSITY"] = "warning"
 from vlm_bridge.model_architecture import (
     VisionEncoder,
     LanguageModel,
-    BridgeModule,
+    BridgeLite,
     FullModel,
 )
 from vlm_bridge.data_pipeline.data_loader import VLDataset, create_data_loader
@@ -32,13 +32,13 @@ def test_vision_encoder_inference():
 
     # Initialize real DINOv2 model
     vision_encoder = VisionEncoder("facebook/dinov2-large")
-    vision_encoder.eval()  # Ensure inference mode
+    vision_encoder.model.eval()
 
-    # Small batch size
+    # Minimal batch for testing
     batch_size = 1
     images = torch.randn(batch_size, 3, 224, 224)
 
-    # Test inference
+    # Test inference only
     with torch.no_grad():
         vision_features = vision_encoder(images)
 
@@ -56,7 +56,7 @@ def test_vision_encoder_inference():
     print(f"  Model: {info['model_name']}")
     print(f"  Parameters: {info['num_parameters']:,} (all frozen)")
 
-    del vision_encoder, vision_features  # Free memory
+    del vision_encoder, vision_features
     torch.cuda.empty_cache() if torch.cuda.is_available() else None
     torch.mps.empty_cache() if torch.backends.mps.is_available() else None
 
@@ -107,16 +107,18 @@ def test_language_model_inference():
     print("✓ LanguageModel inference test passed!\n")
 
 
-def test_bridge_module_inference():
-    """Test BridgeModule with real dimensions - inference only."""
-    print("Testing BridgeModule (inference only)...")
+def test_bridge_lite_inference():
+    """Test BridgeLite with real dimensions - inference only."""
+    print("Testing BridgeLite (inference only)...")
 
-    # Initialize bridge module
-    bridge = BridgeModule(
+    # Initialize Bridge-Lite with 2 blocks
+    bridge = BridgeLite(
         vision_dim=1024,  # DINOv2-Large output
         language_dim=2304,  # Gemma-2-2B dimension
-        num_heads=8,
-        dropout=0.1,
+        num_blocks=2,  # SOP requirement
+        num_heads_cross=8,
+        num_heads_self=18,  # SOP requirement
+        dropout=0.2,  # SOP requirement
     )
     bridge.eval()  # Inference mode
 
@@ -143,6 +145,8 @@ def test_bridge_module_inference():
 
     # Model info
     info = bridge.get_model_info()
+    print(f"  Architecture: {info['architecture']}")
+    print(f"  Number of blocks: {info['num_blocks']}")
     print(f"  Bridge parameters: {info['total_parameters']:,}")
     print(
         f"  Vision→Language projection: {info['vision_dim']} → {info['language_dim']}"
@@ -152,7 +156,7 @@ def test_bridge_module_inference():
     torch.cuda.empty_cache() if torch.cuda.is_available() else None
     torch.mps.empty_cache() if torch.backends.mps.is_available() else None
 
-    print("✓ BridgeModule inference test passed!\n")
+    print("✓ BridgeLite inference test passed!\n")
 
 
 def test_full_model_minimal():
@@ -295,22 +299,22 @@ if __name__ == "__main__":
     print("Focus: Inference-only validation, minimal memory usage\n")
 
     try:
-        # Core component tests
-        test_vision_encoder_inference()
-        test_language_model_inference()
-        test_bridge_module_inference()
+        # Core component tests (lightweight only)
+        test_bridge_lite_inference()
 
-        # Integration tests
+        # Integration tests (minimal real model loading)
         test_full_model_minimal()
         test_real_data_sample()
 
         print("\n" + "=" * 70)
         print("All tests completed successfully! ✓")
-        print("\nArchitecture validation:")
+        print("\nBridge-Lite Architecture validation:")
         print("- ✅ All components work correctly")
+        print("- ✅ Bridge-Lite with 2 BridgeBlocks functional")
+        print("- ✅ Cross-Attention + Self-Attention layers working")
         print("- ✅ Shapes and dimensions are correct")
         print("- ✅ Real data integration works")
-        print("- ✅ Ready for training strategy development")
+        print("- ✅ Ready for training with improved architecture")
 
         # Final cleanup before exit
         torch.cuda.empty_cache() if torch.cuda.is_available() else None

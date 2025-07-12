@@ -98,7 +98,9 @@ def transform_and_save_images(dataset: Dataset, final_base_dir: str) -> Dataset:
                 "image_path": str(primary_image_path),
                 "caption": clean_caption,
                 "original_id": sample["id"],
-                "split_assignment": [split_name],  # Single split assignment (non-overlapping)
+                "split_assignment": [
+                    split_name
+                ],  # Single split assignment (non-overlapping)
             }
 
             transformed_data[i] = transformed_sample

@@ -92,8 +92,8 @@ def run_training_epoch(context: TrainingContext, epoch: int) -> float:
                 if param.requires_grad and param.grad is not None:
                     param_norm = param.grad.data.norm(2)
                     total_norm += param_norm.item() ** 2
-            grad_norm_before_clip = total_norm ** 0.5
-            
+            grad_norm_before_clip = total_norm**0.5
+
             torch.nn.utils.clip_grad_norm_(model.parameters(), config.gradient_clip_val)
 
         # Update weights
@@ -119,7 +119,9 @@ def run_training_epoch(context: TrainingContext, epoch: int) -> float:
             )
             # Log gradient norm before clipping
             if grad_norm_before_clip > 0:
-                writer.add_scalar("train/grad_norm_before_clip", grad_norm_before_clip, global_step)
+                writer.add_scalar(
+                    "train/grad_norm_before_clip", grad_norm_before_clip, global_step
+                )
 
         # Step learning rate scheduler
         if context.scheduler is not None:
@@ -206,12 +208,12 @@ def run_validation_epoch(context: TrainingContext, epoch: int) -> Tuple[float, f
             # Enhanced monitoring metrics
             batch_size = input_ids.size(0)
             total_samples += batch_size
-            
+
             # Calculate actual sequence lengths using attention mask
             for i in range(batch_size):
                 actual_length = attention_mask[i].sum().item()
                 total_sequence_length += actual_length
-                
+
                 # Token diversity tracking (excluding padding)
                 valid_tokens = input_ids[i][attention_mask[i].bool()]
                 total_tokens += len(valid_tokens)
@@ -255,7 +257,7 @@ def run_validation_epoch(context: TrainingContext, epoch: int) -> Tuple[float, f
 def _generate_validation_samples(model, val_loader, device, config, writer, epoch):
     """
     Generate sample captions for validation monitoring and TensorBoard logging.
-    
+
     Enhanced features:
     - TensorBoard text logging for visual inspection
     - BLEU-4 score calculation for quality metrics
@@ -269,25 +271,25 @@ def _generate_validation_samples(model, val_loader, device, config, writer, epoc
     all_bleu_scores = []
     all_generated_lengths = []
     all_generated_tokens = set()
-    
+
     # Get a few samples from validation loader
     sample_count = 0
     sample_batch = None
-    
+
     # Get the first batch for consistent sampling
     for batch in val_loader:
         sample_batch = batch
         break
-    
+
     if sample_batch is None:
         print("[Sample Generation] No validation data available")
         return
-    
+
     # Generate samples from the first batch
     for i in range(min(config.num_validation_samples, len(sample_batch["images"]))):
-        images = sample_batch["images"][i:i+1].to(device)
-        input_ids = sample_batch["input_ids"][i:i+1].to(device)
-        attention_mask = sample_batch["attention_mask"][i:i+1].to(device)
+        images = sample_batch["images"][i : i + 1].to(device)
+        input_ids = sample_batch["input_ids"][i : i + 1].to(device)
+        attention_mask = sample_batch["attention_mask"][i : i + 1].to(device)
 
         # Generate caption
         with torch.no_grad():
@@ -300,15 +302,17 @@ def _generate_validation_samples(model, val_loader, device, config, writer, epoc
 
             # Decode original caption for comparison
             original_tokens = input_ids[0][attention_mask[0].bool()]
-            original_caption = model.language_model.decode_text(original_tokens.unsqueeze(0))[0]
-            
+            original_caption = model.language_model.decode_text(
+                original_tokens.unsqueeze(0)
+            )[0]
+
             # Clean up generated caption
             generated_caption = generated_caption.strip()
             original_caption = original_caption.strip()
-            
+
             # Calculate simple BLEU-4 score
             bleu_score = _calculate_simple_bleu4(original_caption, generated_caption)
-            
+
             # Statistics
             all_bleu_scores.append(bleu_score)
             generated_tokens = generated_caption.split()
@@ -328,10 +332,10 @@ def _generate_validation_samples(model, val_loader, device, config, writer, epoc
 📊 BLEU-4: {bleu_score:.4f}
 📏 Length: {len(generated_tokens)} tokens
 """
-            
+
             # Log to TensorBoard
             writer.add_text(f"validation/sample_{sample_count}", sample_text, epoch)
-            
+
             # Console output
             print(f"  Sample {sample_count + 1}:")
             print(f"    Original: {original_caption[:100]}...")
@@ -340,20 +344,26 @@ def _generate_validation_samples(model, val_loader, device, config, writer, epoc
             print()
 
             sample_count += 1
-    
+
     # Calculate and log aggregated metrics
     if all_bleu_scores:
         avg_bleu = sum(all_bleu_scores) / len(all_bleu_scores)
         avg_length = sum(all_generated_lengths) / len(all_generated_lengths)
-        token_diversity = len(all_generated_tokens) / sum(all_generated_lengths) if sum(all_generated_lengths) > 0 else 0
-        
+        token_diversity = (
+            len(all_generated_tokens) / sum(all_generated_lengths)
+            if sum(all_generated_lengths) > 0
+            else 0
+        )
+
         # Log aggregated metrics to TensorBoard
         writer.add_scalar("validation/sample_bleu_avg", avg_bleu, epoch)
         writer.add_scalar("validation/sample_length_avg", avg_length, epoch)
         writer.add_scalar("validation/sample_diversity", token_diversity, epoch)
-        
+
         print(f"[Sample Generation] Completed {sample_count} samples")
-        print(f"[Sample Statistics] Avg BLEU-4: {avg_bleu:.4f}, Avg Length: {avg_length:.1f}, Diversity: {token_diversity:.4f}")
+        print(
+            f"[Sample Statistics] Avg BLEU-4: {avg_bleu:.4f}, Avg Length: {avg_length:.1f}, Diversity: {token_diversity:.4f}"
+        )
         print()
     else:
         print("[Sample Generation] No samples generated\n")
@@ -362,54 +372,58 @@ def _generate_validation_samples(model, val_loader, device, config, writer, epoc
 def _calculate_simple_bleu4(reference, candidate):
     """
     Calculate a simplified BLEU-4 score for quick quality assessment.
-    
+
     This is a lightweight implementation for monitoring purposes.
     For rigorous evaluation, use proper BLEU libraries.
     """
     # Tokenize
     ref_tokens = reference.lower().split()
     cand_tokens = candidate.lower().split()
-    
+
     if len(cand_tokens) == 0:
         return 0.0
-    
+
     # Calculate n-gram precisions (1-gram to 4-gram)
     precisions = []
-    
+
     for n in range(1, 5):
         if len(cand_tokens) < n:
             precisions.append(0.0)
             continue
-            
+
         # Generate n-grams
-        ref_ngrams = [tuple(ref_tokens[i:i+n]) for i in range(len(ref_tokens)-n+1)]
-        cand_ngrams = [tuple(cand_tokens[i:i+n]) for i in range(len(cand_tokens)-n+1)]
-        
+        ref_ngrams = [
+            tuple(ref_tokens[i : i + n]) for i in range(len(ref_tokens) - n + 1)
+        ]
+        cand_ngrams = [
+            tuple(cand_tokens[i : i + n]) for i in range(len(cand_tokens) - n + 1)
+        ]
+
         if len(cand_ngrams) == 0:
             precisions.append(0.0)
             continue
-        
+
         # Count matches
         ref_ngram_counts = {}
         for ngram in ref_ngrams:
             ref_ngram_counts[ngram] = ref_ngram_counts.get(ngram, 0) + 1
-        
+
         matches = 0
         for ngram in cand_ngrams:
             if ngram in ref_ngram_counts and ref_ngram_counts[ngram] > 0:
                 matches += 1
                 ref_ngram_counts[ngram] -= 1
-        
+
         precision = matches / len(cand_ngrams)
         precisions.append(precision)
-    
+
     # Geometric mean of precisions
     if all(p > 0 for p in precisions):
         bleu = (precisions[0] * precisions[1] * precisions[2] * precisions[3]) ** 0.25
     else:
         bleu = 0.0
-    
+
     # Brevity penalty (simplified)
     bp = min(1.0, len(cand_tokens) / len(ref_tokens)) if len(ref_tokens) > 0 else 0.0
-    
+
     return bleu * bp

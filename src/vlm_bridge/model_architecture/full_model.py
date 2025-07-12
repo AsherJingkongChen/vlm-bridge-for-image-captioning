@@ -19,7 +19,7 @@ from PIL import Image
 
 from .vision_encoder import VisionEncoder
 from .language_model import LanguageModel
-from .bridge_module import BridgeModule
+from .bridge_module import BridgeLite
 
 
 class FullModel(nn.Module):
@@ -65,10 +65,10 @@ class FullModel(nn.Module):
         self.language_model = LanguageModel(language_model_name, device)
 
         # Initialize bridge module with correct dimensions
-        self.bridge_module = BridgeModule(
+        self.bridge_module = BridgeLite(
             vision_dim=self.vision_encoder.output_dim,
             language_dim=self.language_model.output_dim,
-            num_heads=bridge_num_heads,
+            num_heads_cross=bridge_num_heads,
             dropout=bridge_dropout,
         ).to(device)
 
