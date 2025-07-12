@@ -18,7 +18,7 @@ def transform_and_save_images(dataset: Dataset, final_base_dir: str) -> Dataset:
     Transform the entire GroundCap dataset into (image_path, caption) format.
 
     This function:
-    1. Implements data split logic (train 80%, val 5% overlap, test 20%)
+    1. Implements data split logic (train 80%, val 2% non-overlapping, test 18%)
     2. Saves images directly to final directory structure
     3. Extracts clean captions (removes HTML grounding tags)
     4. Returns a new Dataset with image_path and caption fields
@@ -43,16 +43,15 @@ def transform_and_save_images(dataset: Dataset, final_base_dir: str) -> Dataset:
     val_images_dir.mkdir(parents=True, exist_ok=True)
     test_images_dir.mkdir(parents=True, exist_ok=True)
 
-    # Calculate split indices
+    # Calculate split indices for non-overlapping splits
     total_size = len(dataset)
-    train_end = int(0.8 * total_size)
-    val_start = int(
-        0.75 * total_size
-    )  # Changed from 0.6 to 0.75 for 5% validation split
-    test_start = train_end
+    train_end = int(0.8 * total_size)  # 80% for training
+    val_start = train_end  # Validation starts where training ends
+    val_end = int(0.82 * total_size)  # 2% for validation
+    test_start = val_end  # Test starts where validation ends
 
     print(
-        f"Split strategy: Train 0-{train_end}, Val {val_start}-{train_end}, Test {test_start}-{total_size}"
+        f"Split strategy: Train 0-{train_end}, Val {val_start}-{val_end}, Test {test_start}-{total_size}"
     )
 
     # Process samples in parallel with threading
@@ -62,13 +61,13 @@ def transform_and_save_images(dataset: Dataset, final_base_dir: str) -> Dataset:
 
     def process_sample(i, sample):
         try:
-            # 1. Determine which split(s) this sample belongs to
+            # 1. Determine which split this sample belongs to (non-overlapping)
             split_dirs = []
             if i < train_end:
                 split_dirs.append(("train", train_images_dir))
-            if val_start <= i < train_end:
+            elif val_start <= i < val_end:
                 split_dirs.append(("val", val_images_dir))
-            if i >= test_start:
+            elif i >= test_start:
                 split_dirs.append(("test", test_images_dir))
 
             if not split_dirs:
@@ -78,17 +77,17 @@ def transform_and_save_images(dataset: Dataset, final_base_dir: str) -> Dataset:
             original_id = sample["id"]
             image_filename = f"{original_id}.jpg"
 
-            # Save to all relevant splits (direct save, no copying)
-            for split_name, split_dir in split_dirs:
-                # Ensure directory exists
-                split_dir.mkdir(parents=True, exist_ok=True)
-                split_image_path = split_dir / image_filename
-                if not split_image_path.exists():
-                    # Save directly to each split directory
-                    sample["image"].save(str(split_image_path), "JPEG", quality=95)
+            # Save to the appropriate split directory (non-overlapping)
+            split_name, split_dir = split_dirs[0]  # Only one split per sample now
+            # Ensure directory exists
+            split_dir.mkdir(parents=True, exist_ok=True)
+            split_image_path = split_dir / image_filename
+            if not split_image_path.exists():
+                # Save directly to the split directory
+                sample["image"].save(str(split_image_path), "JPEG", quality=95)
 
-            # Use first split path as primary path for reference
-            primary_image_path = split_dirs[0][1] / image_filename
+            # Set the image path
+            primary_image_path = split_image_path
 
             # 3. Extract clean caption
             raw_caption = sample["caption"]
@@ -99,9 +98,7 @@ def transform_and_save_images(dataset: Dataset, final_base_dir: str) -> Dataset:
                 "image_path": str(primary_image_path),
                 "caption": clean_caption,
                 "original_id": sample["id"],
-                "split_assignment": [
-                    s[0] for s in split_dirs
-                ],  # Track which splits this belongs to
+                "split_assignment": [split_name],  # Single split assignment (non-overlapping)
             }
 
             transformed_data[i] = transformed_sample

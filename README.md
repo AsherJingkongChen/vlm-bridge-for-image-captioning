@@ -49,6 +49,22 @@ uv run vlm-data transform --output-dir data/groundcap
 uv run vlm-data inspect-loader --data-dir data/groundcap
 ```
 
+### Data Split Strategy
+
+The dataset is divided into **non-overlapping** splits to ensure honest validation metrics:
+
+-   **Training Set**: 80% (41,880 samples)
+-   **Validation Set**: 2% (1,047 samples)
+-   **Test Set**: 18% (9,423 samples)
+
+**Why non-overlapping splits?**
+
+-   Validation data that overlaps with training data cannot measure true generalization
+-   Our 2% validation set (1,047 samples) is sufficient for monitoring training progress
+-   The 18% test set provides robust final evaluation
+
+**Total**: 52,350 samples from the GroundCap dataset
+
 ### Training
 
 Start training with configuration files:
@@ -332,8 +348,8 @@ vlm-bridge-for-image-captioning/
 │   └── control_vastai_local.sh # Local controlling script
 ├── data/groundcap/             # Processed dataset
 │   ├── train/                  # 41,880 samples
-│   ├── val/                    # 2,618 samples (5% for fast validation)
-│   └── test/                   # 10,470 samples
+│   ├── val/                    # 1,047 samples (2% for fast validation)
+│   └── test/                   # 9,423 samples
 ├── checkpoints/                # Saved model weights
 └── logs/                       # TensorBoard logs
 ```
