@@ -52,7 +52,7 @@ class TrainingConfig:
     save_every_n_epochs: int = 1
 
     # Enhanced validation
-    generate_samples_every_n_epochs: int = 5  # Generate samples every N epochs
+    generate_samples_every_n_epochs: int = 1  # Generate samples every N epochs
     num_validation_samples: int = 3  # Number of samples to generate for inspection
 
     # Early stopping (for 48k dataset to prevent overfitting)
