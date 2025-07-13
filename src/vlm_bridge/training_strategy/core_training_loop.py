@@ -334,7 +334,7 @@ def _generate_validation_samples(model, val_loader, device, config, writer, epoc
 """
 
             # Log to TensorBoard
-            writer.add_text(f"validation/sample_{sample_count}", sample_text, epoch)
+            writer.add_text(f"val/sample_{sample_count}", sample_text, epoch)
 
             # Console output
             print(f"  Sample {sample_count + 1}:")
@@ -356,9 +356,9 @@ def _generate_validation_samples(model, val_loader, device, config, writer, epoc
         )
 
         # Log aggregated metrics to TensorBoard
-        writer.add_scalar("validation/sample_bleu_avg", avg_bleu, epoch)
-        writer.add_scalar("validation/sample_length_avg", avg_length, epoch)
-        writer.add_scalar("validation/sample_diversity", token_diversity, epoch)
+        writer.add_scalar("val/sample_bleu_avg", avg_bleu, epoch)
+        writer.add_scalar("val/sample_length_avg", avg_length, epoch)
+        writer.add_scalar("val/sample_diversity", token_diversity, epoch)
 
         print(f"[Sample Generation] Completed {sample_count} samples")
         print(
