@@ -404,7 +404,10 @@ class BridgeLite(nn.Module):
                 nn.init.zeros_(module.bias)
 
     def forward(
-        self, vision_features: torch.Tensor, text_embeddings: torch.Tensor
+        self,
+        vision_features: torch.Tensor,
+        text_embeddings: torch.Tensor,
+        debug: bool = False,
     ) -> torch.Tensor:
         """
         Forward pass through the Bridge-Lite module.
@@ -412,15 +415,43 @@ class BridgeLite(nn.Module):
         Args:
             vision_features: Visual features [batch_size, vision_seq_len, vision_dim]
             text_embeddings: Text embeddings [batch_size, text_seq_len, language_dim]
+            debug: Enable detailed debugging output
 
         Returns:
             Enhanced text embeddings [batch_size, text_seq_len, language_dim]
         """
-        # Process through stack of Bridge Blocks
+        # Process through stack of Bridge Blocks with optional debugging
         # Each block's Cross-Attention handles the dimension mismatch internally
         enhanced_embeddings = text_embeddings
-        for bridge_block in self.bridge_blocks:
+
+        if debug:
+            print(
+                f"🌉 Bridge Input - Vision: {vision_features.shape}, Text: {text_embeddings.shape}"
+            )
+            print(
+                f"    Text stats: mean={text_embeddings.mean():.4f}, std={text_embeddings.std():.4f}"
+            )
+            print(
+                f"    Vision stats: mean={vision_features.mean():.4f}, std={vision_features.std():.4f}"
+            )
+
+        for i, bridge_block in enumerate(self.bridge_blocks):
+            if debug:
+                before_stats = enhanced_embeddings.mean(), enhanced_embeddings.std()
+
             enhanced_embeddings = bridge_block(enhanced_embeddings, vision_features)
+
+            if debug:
+                after_stats = enhanced_embeddings.mean(), enhanced_embeddings.std()
+                print(
+                    f"    Block {i + 1}: {before_stats[0]:.4f}±{before_stats[1]:.4f} → {after_stats[0]:.4f}±{after_stats[1]:.4f}"
+                )
+
+                # Check for numerical issues
+                if torch.isnan(enhanced_embeddings).any():
+                    print(f"    ⚠️  NaN detected in Block {i + 1} output!")
+                if torch.isinf(enhanced_embeddings).any():
+                    print(f"    ⚠️  Inf detected in Block {i + 1} output!")
 
         return enhanced_embeddings
 

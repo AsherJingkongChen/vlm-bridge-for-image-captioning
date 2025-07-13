@@ -14,7 +14,7 @@ Key Features:
 
 import torch
 import torch.nn as nn
-from typing import Dict, Optional, Any, Union
+from typing import Dict, Optional, Any, Union, List
 from PIL import Image
 
 from .vision_encoder import VisionEncoder
@@ -195,6 +195,7 @@ class FullModel(nn.Module):
         temperature: float = 0.7,
         do_sample: bool = True,
         top_p: float = 0.9,
+        debug: bool = False,
     ) -> str:
         """
         Generate a caption for a single image using auto-regressive generation.
@@ -212,6 +213,7 @@ class FullModel(nn.Module):
             temperature: Sampling temperature
             do_sample: Whether to use sampling
             top_p: Top-p sampling parameter
+            debug: Enable detailed debugging output
 
         Returns:
             Generated caption string
@@ -235,8 +237,13 @@ class FullModel(nn.Module):
                 self.device
             )
 
-            # Auto-regressive generation loop
-            for _ in range(max_length):
+            # Auto-regressive generation loop with enhanced debugging
+            for step in range(max_length):
+                if debug:
+                    current_text = self.language_model.decode_text(input_ids)[0]
+                    print(
+                        f"  Step {step:2d}: Current sequence: '{current_text}' (length: {input_ids.shape[1]})"
+                    )
                 # Get current text embeddings
                 text_embeddings = self.language_model.get_embeddings(input_ids)
 
@@ -245,7 +252,7 @@ class FullModel(nn.Module):
 
                 # Enhance with vision through BridgeModule
                 enhanced_embeddings = self.bridge_module(
-                    vision_features, text_embeddings
+                    vision_features, text_embeddings, debug=debug
                 )
 
                 # Generate logits through language model
@@ -254,11 +261,44 @@ class FullModel(nn.Module):
                 )
 
                 # Get next token logits (last position)
-                next_token_logits = logits[:, -1, :] / temperature
+                next_token_logits = logits[:, -1, :]
 
-                # Sample next token
-                if do_sample:
-                    # Top-p sampling
+                # Check for numerical issues
+                if torch.isnan(next_token_logits).any():
+                    if debug:
+                        print(f"    ⚠️  NaN detected in logits at step {step}")
+                    # Fallback to uniform distribution
+                    next_token_logits = torch.zeros_like(next_token_logits)
+
+                if torch.isinf(next_token_logits).any():
+                    if debug:
+                        print(f"    ⚠️  Inf detected in logits at step {step}")
+                    # Clamp extreme values
+                    next_token_logits = torch.clamp(
+                        next_token_logits, min=-100, max=100
+                    )
+
+                # Apply temperature with stability check
+                if temperature > 0:
+                    next_token_logits = next_token_logits / temperature
+                else:
+                    # Temperature = 0 means greedy (just take argmax)
+                    do_sample = False
+
+                # Debug: Show top predictions before sampling
+                if debug:
+                    top_k = torch.topk(next_token_logits, k=5, dim=-1)
+                    top_words = [
+                        self.language_model.tokenizer.decode([tid])
+                        for tid in top_k.indices[0]
+                    ]
+                    print(
+                        f"    Top-5 predictions: {list(zip(top_words, top_k.values[0].tolist()))}"
+                    )
+
+                # Sample next token with improved logic
+                if do_sample and top_p < 1.0:
+                    # Improved top-p sampling with safety checks
                     sorted_logits, sorted_indices = torch.sort(
                         next_token_logits, descending=True
                     )
@@ -267,29 +307,69 @@ class FullModel(nn.Module):
                     )
 
                     # Remove tokens with cumulative probability above top_p
+                    # Keep at least the top token to avoid empty distribution
                     sorted_indices_to_remove = cumulative_probs > top_p
-                    sorted_indices_to_remove[..., 1:] = sorted_indices_to_remove[
-                        ..., :-1
-                    ].clone()
-                    sorted_indices_to_remove[..., 0] = 0
+                    sorted_indices_to_remove[..., 0] = (
+                        False  # Always keep the top token
+                    )
 
-                    indices_to_remove = sorted_indices_to_remove.scatter(
+                    # Check if we're removing too many tokens
+                    kept_tokens = (~sorted_indices_to_remove).sum().item()
+                    if debug and kept_tokens < 5:
+                        print(f"    ⚠️  Top-p filtering keeps only {kept_tokens} tokens")
+
+                    indices_to_remove = torch.zeros_like(
+                        next_token_logits, dtype=torch.bool
+                    )
+                    indices_to_remove.scatter_(
                         dim=-1, index=sorted_indices, src=sorted_indices_to_remove
                     )
                     next_token_logits[indices_to_remove] = -float("Inf")
 
                     # Sample from the filtered distribution
                     probs = torch.softmax(next_token_logits, dim=-1)
+
+                    # Check for valid probability distribution
+                    if torch.isnan(probs).any() or probs.sum() == 0:
+                        if debug:
+                            print(
+                                "    ⚠️  Invalid probability distribution, falling back to greedy"
+                            )
+                        next_token = torch.argmax(
+                            next_token_logits, dim=-1, keepdim=True
+                        )
+                    else:
+                        next_token = torch.multinomial(probs, num_samples=1)
+
+                elif do_sample:
+                    # Pure sampling without top-p
+                    probs = torch.softmax(next_token_logits, dim=-1)
                     next_token = torch.multinomial(probs, num_samples=1)
                 else:
                     # Greedy sampling
                     next_token = torch.argmax(next_token_logits, dim=-1, keepdim=True)
 
+                # Debug: Show selected token
+                if debug:
+                    selected_word = self.language_model.tokenizer.decode(
+                        [next_token.item()]
+                    )
+                    selected_logit = next_token_logits[0, next_token.item()].item()
+                    print(
+                        f"    Selected: '{selected_word}' (ID: {next_token.item()}, logit: {selected_logit:.3f})"
+                    )
+
                 # Append token to sequence
                 input_ids = torch.cat([input_ids, next_token], dim=-1)
 
-                # Check for EOS token
+                # Check for EOS token with debugging
                 if next_token.item() == self.language_model.tokenizer.eos_token_id:
+                    if debug:
+                        print(f"    🛑 EOS token encountered at step {step}")
+                        if step == 0:
+                            print(
+                                "    ⚠️  WARNING: EOS triggered immediately after BOS!"
+                            )
                     break
 
             # Decode the generated sequence
@@ -304,6 +384,60 @@ class FullModel(nn.Module):
             ).strip()
 
             return caption
+
+    def generate_caption_robust(
+        self,
+        image: Union[torch.Tensor, Image.Image],
+        max_length: int = 50,
+        strategies: Optional[List[Dict[str, Any]]] = None,
+    ) -> Dict[str, str]:
+        """
+        Generate captions using multiple strategies for robustness.
+
+        Args:
+            image: Input image
+            max_length: Maximum caption length
+            strategies: List of generation parameter dictionaries
+
+        Returns:
+            Dictionary mapping strategy names to generated captions
+        """
+        if strategies is None:
+            strategies = [
+                {"name": "greedy", "do_sample": False},
+                {
+                    "name": "low_temp",
+                    "temperature": 0.1,
+                    "do_sample": True,
+                    "top_p": 1.0,
+                },
+                {
+                    "name": "medium_temp",
+                    "temperature": 0.7,
+                    "do_sample": True,
+                    "top_p": 0.9,
+                },
+                {
+                    "name": "no_top_p",
+                    "temperature": 0.7,
+                    "do_sample": True,
+                    "top_p": 1.0,
+                },
+            ]
+
+        results = {}
+
+        for strategy in strategies:
+            strategy_name = strategy.pop("name")
+            try:
+                caption = self.generate_caption(
+                    image, max_length=max_length, **strategy
+                )
+                results[strategy_name] = caption
+            except Exception as e:
+                results[strategy_name] = f"ERROR: {str(e)}"
+
+        return results
 
     def save_model(self, path: str):
         """

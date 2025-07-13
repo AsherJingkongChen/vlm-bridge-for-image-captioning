@@ -291,13 +291,31 @@ def _generate_validation_samples(model, val_loader, device, config, writer, epoc
         input_ids = sample_batch["input_ids"][i : i + 1].to(device)
         attention_mask = sample_batch["attention_mask"][i : i + 1].to(device)
 
-        # Generate caption
+        # Generate captions using multiple strategies for debugging
         with torch.no_grad():
+            # Primary generation (current strategy)
             generated_caption = model.generate_caption(
                 images,
                 max_length=50,
                 temperature=0.7,
                 top_p=0.9,
+                debug=False,  # Set to True for detailed debugging
+            )
+
+            # Test multiple strategies for comparison
+            robust_results = model.generate_caption_robust(
+                images,
+                max_length=30,
+                strategies=[
+                    {"name": "greedy", "do_sample": False},
+                    {
+                        "name": "low_temp",
+                        "temperature": 0.1,
+                        "do_sample": True,
+                        "top_p": 1.0,
+                    },
+                    {"name": "debug_greedy", "do_sample": False, "debug": True},
+                ],
             )
 
             # Decode original caption for comparison
@@ -319,15 +337,21 @@ def _generate_validation_samples(model, val_loader, device, config, writer, epoc
             all_generated_lengths.append(len(generated_tokens))
             all_generated_tokens.update(generated_tokens)
 
-            # Format sample for TensorBoard
+            # Format sample for TensorBoard with multiple strategies
+            robust_info = "\n".join(
+                [f"  {name}: '{caption}'" for name, caption in robust_results.items()]
+            )
             sample_text = f"""
 📸 SAMPLE {sample_count + 1}
 
 🎯 Ground Truth:
 {original_caption}
 
-🤖 Generated:
+🤖 Generated (primary):
 {generated_caption}
+
+🔧 Alternative Strategies:
+{robust_info}
 
 📊 BLEU-4: {bleu_score:.4f}
 📏 Length: {len(generated_tokens)} tokens
@@ -336,11 +360,20 @@ def _generate_validation_samples(model, val_loader, device, config, writer, epoc
             # Log to TensorBoard
             writer.add_text(f"val/sample_{sample_count}", sample_text, epoch)
 
-            # Console output
+            # Console output with strategy comparison
             print(f"  Sample {sample_count + 1}:")
             print(f"    Original: {original_caption[:100]}...")
-            print(f"    Generated: {generated_caption}")
+            print(f"    Generated (primary): {generated_caption}")
             print(f"    BLEU-4: {bleu_score:.4f}")
+
+            # Show alternative strategies results
+            for strategy_name, strategy_caption in robust_results.items():
+                strategy_length = (
+                    len(strategy_caption.split()) if strategy_caption else 0
+                )
+                print(
+                    f"    {strategy_name:12s}: {strategy_length:2d} words - '{strategy_caption}'"
+                )
             print()
 
             sample_count += 1
